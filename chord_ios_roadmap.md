@@ -11,21 +11,25 @@
 
 ## 🏗️ FAZ 1: PROJE ŞABLONU & TEMEL YAPI
 
+**Durum**: ✅ TAMAMLANDI (2025-01-XX)
+**Not**: Isar yerine Hive kullanıldı (Android Gradle uyumluluk sorunu nedeniyle)
+
 **Süre**: ~1 hafta
 **Backend Bağımlılığı**: Yok (sadece API base URL)
 **Frontend Referans**: Genel yapı
 
 ### Görevler
 
-- [ ] Flutter proje oluştur (`flutter create chord_ios`)
-- [ ] Paketler: `dio`, `riverpod`, `go_router`, `flutter_secure_storage`, `signalr_flutter` (veya `signalr_core`)
-- [ ] Local database setup (`hive` veya `isar` - mesajlar, guild listesi cache için)
-- [ ] Error tracking setup (`sentry_flutter` veya `firebase_crashlytics`)
-- [ ] Tema yapılandırması (dark mode, Discord-like colors)
-- [ ] Navigasyon iskeleti (go_router setup)
-- [ ] Base widgets (Button, Input, Loading, Toast)
-- [ ] API client setup (dio interceptor, base URL, error handling)
-- [ ] Secure storage setup (Keychain için flutter_secure_storage)
+- [x] Flutter proje oluştur (`flutter create chord_ios`)
+- [x] Paketler: `dio`, `riverpod`, `go_router`, `flutter_secure_storage`, `signalr_flutter` (veya `signalr_core`) - **signalr_core kullanıldı**
+- [x] Local database setup (`hive` veya `isar` - mesajlar, guild listesi cache için) - **Hive kullanıldı**
+- [x] Error tracking setup (`sentry_flutter` veya `firebase_crashlytics`) - **Sentry kullanıldı**
+- [x] Tema yapılandırması (dark mode, Discord-like colors)
+- [x] Navigasyon iskeleti (go_router setup)
+- [x] Base widgets (Button, Input, Loading, Toast)
+- [x] API client setup (dio interceptor, base URL, error handling)
+- [x] Secure storage setup (Keychain için flutter_secure_storage)
+- [x] Splash screen eklendi
 
 ### Deliverables
 
@@ -355,8 +359,9 @@
 
 ### Local Database
 
-- **Önerilen**: `isar` (hızlı, modern, type-safe)
-- **Alternatif**: `hive` (basit, hafif)
+- **Kullanılan**: `hive` + `hive_flutter` (Android uyumluluğu için seçildi)
+- **Alternatif**: `isar` (daha hızlı ama Android Gradle uyumluluk sorunu var)
+- **Not**: İlk implementasyonda Isar denendi ancak Android build hatası (namespace sorunu) nedeniyle Hive'a geçildi. Hive daha basit ve stabil.
 
 ### Error Tracking
 

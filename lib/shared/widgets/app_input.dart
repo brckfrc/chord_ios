@@ -13,6 +13,7 @@ class AppInput extends StatelessWidget {
   final int? maxLines;
   final IconData? prefixIcon;
   final Widget? suffixIcon;
+  final TextCapitalization? textCapitalization;
 
   const AppInput({
     super.key,
@@ -27,6 +28,7 @@ class AppInput extends StatelessWidget {
     this.maxLines = 1,
     this.prefixIcon,
     this.suffixIcon,
+    this.textCapitalization,
   });
 
   @override
@@ -48,6 +50,7 @@ class AppInput extends StatelessWidget {
           validator: validator,
           onChanged: onChanged,
           maxLines: maxLines,
+          textCapitalization: textCapitalization ?? TextCapitalization.none,
           style: Theme.of(context).textTheme.bodyLarge,
           decoration: InputDecoration(
             hintText: hint,

@@ -43,19 +43,21 @@
 
 ## 🏗️ FAZ 2: AUTH UI & ENTEGRASYON
 
+**Durum**: ✅ TAMAMLANDI (2025-01-XX)
+
 **Süre**: ~1 hafta
 **Backend Bağımlılığı**: ✅ FAZ 1 tamamlandı (Auth endpoints hazır)
 **Frontend Referans**: `Login.tsx`, `Register.tsx`
 
 ### Görevler
 
-- [ ] Login ekranı (form validation, error handling)
-- [ ] Register ekranı (form validation)
-- [ ] Auth repository (login, register, refresh token)
-- [ ] Token yönetimi (secure storage, auto-refresh)
-- [ ] Protected route wrapper
-- [ ] Auth state management (Riverpod Provider)
-- [ ] Auto-login (token varsa otomatik giriş)
+- [x] Login ekranı (form validation, error handling)
+- [x] Register ekranı (form validation)
+- [x] Auth repository (login, register, refresh token, getCurrentUser)
+- [x] Token yönetimi (secure storage, auto-refresh)
+- [x] Protected route wrapper
+- [x] Auth state management (Riverpod Provider)
+- [x] Auto-login (token varsa otomatik giriş)
 
 ### Deliverables
 

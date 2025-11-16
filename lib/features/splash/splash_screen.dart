@@ -1,9 +1,61 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import '../../core/theme/app_theme.dart';
+import '../../providers/auth_provider.dart';
 
-/// Splash/Welcome screen
-class SplashScreen extends StatelessWidget {
+/// Splash/Welcome screen with auto-login
+class SplashScreen extends ConsumerStatefulWidget {
   const SplashScreen({super.key});
+
+  @override
+  ConsumerState<SplashScreen> createState() => _SplashScreenState();
+}
+
+class _SplashScreenState extends ConsumerState<SplashScreen> {
+  @override
+  void initState() {
+    super.initState();
+    _checkAutoLogin();
+  }
+
+  Future<void> _checkAutoLogin() async {
+    // Wait a bit for UI to show
+    await Future.delayed(const Duration(milliseconds: 500));
+
+    try {
+      // Check if user is authenticated (has token)
+      final authState = ref.read(authProvider);
+      
+      // If already authenticated, go to home
+      if (authState.isAuthenticated && authState.user != null) {
+        if (mounted) {
+          context.go('/me');
+        }
+        return;
+      }
+
+      // Try to get current user (will auto-refresh token if needed)
+      await ref.read(authProvider.notifier).getCurrentUser();
+      
+      // Check again after getCurrentUser
+      final newAuthState = ref.read(authProvider);
+      if (newAuthState.isAuthenticated && mounted) {
+        context.go('/me');
+        return;
+      }
+    } catch (_) {
+      // Ignore errors, will redirect to login
+    }
+
+    // Redirect to login if not authenticated
+    if (mounted) {
+      await Future.delayed(const Duration(milliseconds: 500));
+      if (mounted) {
+        context.go('/login');
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {

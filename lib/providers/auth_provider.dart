@@ -42,7 +42,7 @@ final authRepositoryProvider = Provider<AuthRepository>((ref) {
 class AuthNotifier extends StateNotifier<AuthState> {
   final AuthRepository _repository;
 
-  AuthNotifier(this._repository) : super(AuthState()) {
+  AuthNotifier(this._repository) : super(AuthState(isLoading: true)) {
     _checkAuthStatus();
   }
 
@@ -50,11 +50,28 @@ class AuthNotifier extends StateNotifier<AuthState> {
   Future<void> _checkAuthStatus() async {
     try {
       final isAuth = await _repository.isAuthenticated();
+      
       if (isAuth) {
-        await getCurrentUser();
+        // Token exists, try to refresh first, then get user
+        // This prevents getCurrentUser() from calling refreshToken() internally
+        // which could clear storage if refresh fails
+        try {
+          await refreshToken();
+          await getCurrentUser();
+          // getCurrentUser() will update state with user and isAuthenticated: true
+        } catch (e) {
+          // If refresh fails, token is invalid
+          // Clear state but don't clear storage (let user manually logout)
+          // Note: refreshToken() may have already cleared storage if refresh token expired
+          state = state.copyWith(isLoading: false, isAuthenticated: false);
+        }
+      } else {
+        // No token found, set loading to false
+        state = state.copyWith(isLoading: false);
       }
-    } catch (_) {
-      // Ignore errors during initial check
+    } catch (e) {
+      // Ignore errors during initial check, but set loading to false
+      state = state.copyWith(isLoading: false);
     }
   }
 

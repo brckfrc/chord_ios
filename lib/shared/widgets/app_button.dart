@@ -8,6 +8,7 @@ class AppButton extends StatelessWidget {
   final bool isSecondary;
   final bool isDanger;
   final IconData? icon;
+  final double? width;
 
   const AppButton({
     super.key,
@@ -17,6 +18,7 @@ class AppButton extends StatelessWidget {
     this.isSecondary = false,
     this.isDanger = false,
     this.icon,
+    this.width,
   });
 
   @override
@@ -24,7 +26,7 @@ class AppButton extends StatelessWidget {
     final theme = Theme.of(context);
 
     return SizedBox(
-      width: double.infinity,
+      width: width ?? double.infinity,
       height: 44,
       child: ElevatedButton(
         onPressed: isLoading ? null : onPressed,

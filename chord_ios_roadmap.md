@@ -70,28 +70,38 @@
 
 ## 🏗️ FAZ 3: GUILD & CHANNEL UI
 
+**Durum**: ✅ TAMAMLANDI (2025-01-XX)
+**Not**: DM (Direct Messages) yapısı da eklendi (FriendsSidebar, DMView, FriendsLayout). Mock data ile test edilecek.
+
 **Süre**: ~1 hafta
 **Backend Bağımlılığı**: ✅ FAZ 2 tamamlandı (Guild/Channel endpoints hazır)
 **Frontend Referans**: `GuildSidebar.tsx`, `ChannelSidebar.tsx`, `MainLayout.tsx`
 
 ### Görevler
 
-- [ ] MainLayout (3-column: GuildSidebar | ChannelSidebar | Content)
-- [ ] GuildSidebar widget (guild listesi, create guild butonu)
-- [ ] ChannelSidebar widget (channel listesi, text/voice ayrımı)
-- [ ] Guild repository (fetchGuilds, createGuild)
-- [ ] Channel repository (fetchChannels, createChannel)
-- [ ] CreateGuildModal (bottom sheet veya full screen)
-- [ ] CreateChannelModal (text/voice ayrımı)
-- [ ] Navigation logic (guild/channel seçme)
-- [ ] Active state styling
+- [x] MainLayout (GuildSidebar | ChannelSidebar - full screen layout)
+- [x] GuildSidebar widget (guild listesi, create guild butonu, home button)
+- [x] ChannelSidebar widget (channel listesi, text/voice ayrımı)
+- [x] Guild repository (fetchGuilds, createGuild)
+- [x] Channel repository (fetchChannels, createChannel)
+- [x] CreateGuildModal (Dialog modal with overlay barrier)
+- [x] CreateChannelModal (Dialog modal with overlay barrier)
+- [x] Navigation logic (guild/channel seçme, full screen transitions)
+- [x] Active state styling
+- [x] FriendsSidebar widget (DM listesi)
+- [x] FriendsHome screen (placeholder)
+- [x] DMView screen (placeholder)
+- [x] DM repository (fetchDMs, createDM - mock data ile test edilecek)
+- [x] DM provider (Riverpod state management)
+- [x] FriendsLayout (GuildSidebar + FriendsSidebar - full screen)
 
 ### Deliverables
 
 ✅ Guild listesi görünüyor
 ✅ Channel listesi görünüyor
 ✅ Guild/channel oluşturma çalışıyor
-✅ Navigasyon doğru çalışıyor
+✅ Navigasyon doğru çalışıyor (full screen transitions)
+✅ DM yapısı hazır (UI placeholder, mock data ile test edilecek - backend endpoint'leri bekleniyor)
 
 ---
 
@@ -316,9 +326,9 @@
 
 ## 🎯 ÖNCELİK SIRASI
 
-1. **FAZ 1-2**: Temel yapı + Auth (Backend hazır ✅)
-2. **FAZ 3**: Guild/Channel UI (Backend hazır ✅)
-3. **FAZ 4**: Messaging + SignalR (Backend hazır ✅)
+1. **FAZ 1-2**: Temel yapı + Auth (Backend hazır ✅) - ✅ TAMAMLANDI
+2. **FAZ 3**: Guild/Channel UI (Backend hazır ✅) - ✅ TAMAMLANDI
+3. **FAZ 4**: Messaging + SignalR (Backend hazır ✅) - ⏳ SIRADA
 4. **FAZ 5**: Presence (Backend hazır ✅)
 5. **FAZ 6-7**: Voice channels + WebRTC (Backend FAZ 8'de yapılacak, iOS önce başlayabilir)
 6. **FAZ 8**: File upload (Backend FAZ 7'de yapılacak, iOS önce başlayabilir)

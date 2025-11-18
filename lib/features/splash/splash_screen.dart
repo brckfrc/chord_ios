@@ -24,8 +24,18 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
     await Future.delayed(const Duration(milliseconds: 500));
 
     try {
-      // Check if user is authenticated (has token)
-      final authState = ref.read(authProvider);
+      // Wait for initial auth check to complete
+      // During hot restart, AuthNotifier._checkAuthStatus() is running
+      AuthState authState;
+      int attempts = 0;
+      const maxAttempts = 30; // Max 3 seconds wait (30 * 100ms)
+      
+      do {
+        authState = ref.read(authProvider);
+        if (!authState.isLoading) break;
+        await Future.delayed(const Duration(milliseconds: 100));
+        attempts++;
+      } while (attempts < maxAttempts && mounted);
       
       // If already authenticated, go to home
       if (authState.isAuthenticated && authState.user != null) {
@@ -35,14 +45,19 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
         return;
       }
 
-      // Try to get current user (will auto-refresh token if needed)
-      await ref.read(authProvider.notifier).getCurrentUser();
-      
-      // Check again after getCurrentUser
-      final newAuthState = ref.read(authProvider);
-      if (newAuthState.isAuthenticated && mounted) {
-        context.go('/me');
-        return;
+      // If still loading after max attempts, try to get current user manually
+      // This handles edge cases where _checkAuthStatus() is stuck
+      if (authState.isLoading) {
+        try {
+          await ref.read(authProvider.notifier).getCurrentUser();
+          final newAuthState = ref.read(authProvider);
+          if (newAuthState.isAuthenticated && mounted) {
+            context.go('/me');
+            return;
+          }
+        } catch (_) {
+          // Ignore errors
+        }
       }
     } catch (_) {
       // Ignore errors, will redirect to login

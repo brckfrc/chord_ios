@@ -104,16 +104,9 @@ class AuthRepository {
       return UserDto.fromJson(response.data);
     } on DioException catch (e) {
       if (e.response?.statusCode == 401) {
-        // Try to refresh token
-        try {
-          await refreshToken();
-          // Retry after refresh
-          final retryResponse = await _apiClient.get('/auth/me');
-          return UserDto.fromJson(retryResponse.data);
-        } catch (_) {
-          await _storage.clearAll();
-          throw Exception('Session expired. Please login again.');
-        }
+        // Don't try to refresh here - refresh should be done before calling getCurrentUser()
+        // Just throw the error so the caller can handle it
+        throw Exception('Session expired. Please login again.');
       }
       throw Exception('Failed to get user information');
     } catch (e) {

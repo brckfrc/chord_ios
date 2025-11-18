@@ -1,11 +1,11 @@
 import 'package:dio/dio.dart';
-import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import '../../core/config/app_config.dart';
+import '../storage/secure_storage.dart';
 
 /// API Client using Dio
 class ApiClient {
   late final Dio _dio;
-  final FlutterSecureStorage _storage = const FlutterSecureStorage();
+  final SecureStorageService _storage = SecureStorageService();
 
   ApiClient() {
     _dio = Dio(
@@ -28,7 +28,7 @@ class ApiClient {
       InterceptorsWrapper(
         onRequest: (options, handler) async {
           // Add auth token if available
-          final token = await _storage.read(key: 'access_token');
+          final token = await _storage.getAccessToken();
           if (token != null) {
             options.headers['Authorization'] = 'Bearer $token';
           }
@@ -38,7 +38,7 @@ class ApiClient {
           // Handle 401 Unauthorized - refresh token or logout
           if (error.response?.statusCode == 401) {
             // TODO: Implement token refresh logic
-            await _storage.delete(key: 'access_token');
+            await _storage.deleteAccessToken();
             // TODO: Navigate to login
           }
           return handler.next(error);

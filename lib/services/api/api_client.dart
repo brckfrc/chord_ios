@@ -13,6 +13,7 @@ class ApiClient {
         baseUrl: AppConfig.apiBaseUrl,
         connectTimeout: const Duration(seconds: 30),
         receiveTimeout: const Duration(seconds: 30),
+        responseType: ResponseType.json, // JSON response'u otomatik parse et
         headers: {
           'Content-Type': 'application/json',
           'Accept': 'application/json',

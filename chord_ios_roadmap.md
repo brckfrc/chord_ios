@@ -71,7 +71,8 @@
 ## 🏗️ FAZ 3: GUILD & CHANNEL UI
 
 **Durum**: ✅ TAMAMLANDI (2025-01-XX)
-**Not**: 
+**Not**:
+
 - DM (Direct Messages) yapısı da eklendi (FriendsSidebar, DMView, FriendsLayout). Mock data ile test edilecek.
 - Invite modal eklendi (guild header'a invite butonu, mock data ile çalışıyor)
 - Empty state handling eklendi (channel olmayan guild için)
@@ -120,23 +121,30 @@
 
 ## 🏗️ FAZ 4: MESSAGING UI & SIGNALR
 
+**Durum**: 🟡 KISMEN TAMAMLANDI (2025-01-XX)
+**Not**:
+
+- Temel messaging sistemi hazır. Offline mode ve cache sync logic henüz eklenmedi.
+- Channel type 2 (announcement) backend'de enum'a eklendikten sonra frontend'de de düzeltilecek (şu an database'de mevcut ama enum'da tanımlı değil).
+
 **Süre**: ~1.5 hafta
 **Backend Bağımlılığı**: ✅ FAZ 3 tamamlandı (Message endpoints + SignalR hazır)
 **Frontend Referans**: `ChannelView.tsx`, `MessageList.tsx`, `MessageComposer.tsx`
 
 ### Görevler
 
-- [ ] SignalR client setup (`signalr_flutter` veya `signalr_core` package)
-- [ ] ChatHub connection manager (Riverpod Provider)
-- [ ] PresenceHub connection manager
-- [ ] MessageList widget (infinite scroll, pagination)
-- [ ] MessageItem widget (Discord-like grouping, avatar, timestamp)
-- [ ] MessageComposer widget (TextField, send button, typing trigger)
-- [ ] ChannelView page (AppBar + MessageList + Composer)
-- [ ] SignalR event listeners (ReceiveMessage, MessageEdited, MessageDeleted, UserTyping)
-- [ ] JoinChannel/LeaveChannel invoke (route değişiminde)
-- [ ] Typing indicator UI
-- [ ] Message grouping logic (same user consecutive messages)
+- [x] SignalR client setup (`signalr_core` package kullanıldı)
+- [x] ChatHub connection manager (Riverpod Provider)
+- [x] PresenceHub connection manager
+- [x] MessageList widget (infinite scroll, pagination)
+- [x] MessageItem widget (Discord-like grouping, avatar, timestamp)
+- [x] MessageComposer widget (TextField, send button, typing trigger)
+- [x] ChannelView page (AppBar + MessageList + Composer)
+- [x] SignalR event listeners (ReceiveMessage, MessageEdited, MessageDeleted, UserTyping)
+- [x] JoinChannel/LeaveChannel invoke (route değişiminde)
+- [x] Typing indicator UI
+- [x] Message grouping logic (same user consecutive messages)
+- [ ] Channel type 2 (announcement) enum düzeltmesi (backend enum'a eklendikten sonra frontend'de de güncellenecek)
 - [ ] Offline mode / cache stratejisi (mesajları local DB'ye kaydet, offline'da göster)
 - [ ] Cache sync logic (online olduğunda sync, conflict resolution)
 
@@ -146,7 +154,7 @@
 ✅ Gerçek zamanlı mesaj gönderme/alma çalışıyor
 ✅ Edit/delete çalışıyor (SignalR instant updates)
 ✅ Typing indicator görünüyor
-✅ Offline mode çalışıyor (mesajlar cache'leniyor, offline'da görüntüleniyor)
+⏳ Offline mode çalışıyor (mesajlar cache'leniyor, offline'da görüntüleniyor) - Henüz eklenmedi
 
 ---
 

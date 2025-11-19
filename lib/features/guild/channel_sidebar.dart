@@ -86,7 +86,7 @@ class _ChannelSidebarState extends ConsumerState<ChannelSidebar> {
                 decoration: BoxDecoration(
                   border: Border(
                     bottom: BorderSide(
-                      color: Theme.of(context).dividerColor,
+                      color: Color(0xFF1F2023), // Darker gray separator
                       width: 1,
                     ),
                   ),
@@ -269,20 +269,20 @@ class _ChannelSection extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        // Section Header
         InkWell(
           onTap: onToggle,
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+          child: Container(
+            height: 32, // Explicit height for header
+            padding: const EdgeInsets.symmetric(horizontal: 8),
             child: Row(
               children: [
                 Icon(
                   isExpanded
                       ? Icons.keyboard_arrow_down
                       : Icons.keyboard_arrow_right,
-                  size: 14,
-                  color: Theme.of(
-                    context,
-                  ).colorScheme.onSurface.withOpacity(0.6),
+                  size: 12,
+                  color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6),
                 ),
                 const SizedBox(width: 4),
                 Expanded(
@@ -290,10 +290,8 @@ class _ChannelSection extends StatelessWidget {
                     title,
                     style: TextStyle(
                       fontSize: 11,
-                      fontWeight: FontWeight.w600,
-                      color: Theme.of(
-                        context,
-                      ).colorScheme.onSurface.withOpacity(0.6),
+                      fontWeight: FontWeight.w700,
+                      color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6),
                       letterSpacing: 0.5,
                     ),
                   ),
@@ -302,19 +300,18 @@ class _ChannelSection extends StatelessWidget {
                   icon: const Icon(Icons.add, size: 16),
                   onPressed: onCreateChannel,
                   padding: EdgeInsets.zero,
-                  constraints: const BoxConstraints(),
-                  color: Theme.of(
-                    context,
-                  ).colorScheme.onSurface.withOpacity(0.6),
+                  constraints: const BoxConstraints(minWidth: 24, minHeight: 24),
+                  splashRadius: 16,
+                  color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6),
                 ),
               ],
             ),
           ),
         ),
-        const SizedBox(height: 1),
+        // Channel List
         ...channelsToShow.map(
           (channel) => Padding(
-            padding: const EdgeInsets.only(left: 8),
+            padding: const EdgeInsets.only(left: 8, bottom: 2),
             child: _ChannelItem(
               channel: channel,
               isSelected: selectedChannelId == channel.id,
@@ -345,8 +342,10 @@ class _ChannelItem extends StatelessWidget {
   Widget build(BuildContext context) {
     return InkWell(
       onTap: onTap,
+      borderRadius: BorderRadius.circular(4),
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+        height: 34, // Explicit height for channel item
+        padding: const EdgeInsets.symmetric(horizontal: 8),
         decoration: BoxDecoration(
           color: isSelected
               ? Theme.of(context).colorScheme.primaryContainer.withOpacity(0.3)
@@ -357,22 +356,21 @@ class _ChannelItem extends StatelessWidget {
           children: [
             Icon(
               icon,
-              size: 16,
+              size: 18,
               color: isSelected
                   ? Theme.of(context).colorScheme.primary
-                  : Theme.of(context).colorScheme.onSurface.withOpacity(0.6),
+                  : Theme.of(context).colorScheme.onSurface.withOpacity(0.5),
             ),
-            const SizedBox(width: 8),
+            const SizedBox(width: 6),
             Expanded(
               child: Text(
                 channel.name,
                 style: TextStyle(
-                  fontSize: 14,
+                  fontSize: 15,
+                  fontWeight: isSelected ? FontWeight.w500 : FontWeight.w400,
                   color: isSelected
                       ? Theme.of(context).colorScheme.onSurface
-                      : Theme.of(
-                          context,
-                        ).colorScheme.onSurface.withOpacity(0.8),
+                      : Theme.of(context).colorScheme.onSurface.withOpacity(0.7),
                 ),
                 overflow: TextOverflow.ellipsis,
               ),

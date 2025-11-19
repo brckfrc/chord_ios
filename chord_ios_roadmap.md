@@ -71,7 +71,12 @@
 ## 🏗️ FAZ 3: GUILD & CHANNEL UI
 
 **Durum**: ✅ TAMAMLANDI (2025-01-XX)
-**Not**: DM (Direct Messages) yapısı da eklendi (FriendsSidebar, DMView, FriendsLayout). Mock data ile test edilecek.
+**Not**: 
+- DM (Direct Messages) yapısı da eklendi (FriendsSidebar, DMView, FriendsLayout). Mock data ile test edilecek.
+- Invite modal eklendi (guild header'a invite butonu, mock data ile çalışıyor)
+- Empty state handling eklendi (channel olmayan guild için)
+- Fetch optimization: `fetchedGuilds` tracking ile sürekli fetch döngüsü önlendi
+- Channel sidebar dropdown eklendi (section'ları collapse/expand yapabilme)
 
 **Süre**: ~1 hafta
 **Backend Bağımlılığı**: ✅ FAZ 2 tamamlandı (Guild/Channel endpoints hazır)
@@ -94,6 +99,10 @@
 - [x] DM repository (fetchDMs, createDM - mock data ile test edilecek)
 - [x] DM provider (Riverpod state management)
 - [x] FriendsLayout (GuildSidebar + FriendsSidebar - full screen)
+- [x] Invite modal (guild invite link oluşturma ve kopyalama - mock data ile)
+- [x] Empty state handling (channel olmayan guild için)
+- [x] Fetch optimization (fetchedGuilds tracking ile sürekli fetch döngüsü önlendi)
+- [x] Channel sidebar dropdown (section'ları collapse/expand yapabilme)
 
 ### Deliverables
 
@@ -102,6 +111,10 @@
 ✅ Guild/channel oluşturma çalışıyor
 ✅ Navigasyon doğru çalışıyor (full screen transitions)
 ✅ DM yapısı hazır (UI placeholder, mock data ile test edilecek - backend endpoint'leri bekleniyor)
+✅ Invite modal çalışıyor (mock data ile)
+✅ Empty state'ler kullanıcı dostu
+✅ Fetch döngüsü sorunu çözüldü
+✅ Channel sidebar dropdown çalışıyor
 
 ---
 

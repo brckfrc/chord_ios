@@ -6,6 +6,7 @@ import '../../providers/channel_provider.dart';
 import '../../models/guild/channel_dto.dart';
 import '../../models/guild/channel_type.dart';
 import '../../features/modals/create_channel_modal.dart';
+import '../../features/modals/invite_modal.dart';
 import '../../shared/widgets/app_loading.dart';
 
 /// Channel sidebar widget
@@ -17,6 +18,19 @@ class ChannelSidebar extends ConsumerStatefulWidget {
 }
 
 class _ChannelSidebarState extends ConsumerState<ChannelSidebar> {
+  // Section expanded states
+  final Map<String, bool> _sectionExpanded = {
+    'TEXT CHANNELS': true,
+    'VOICE CHANNELS': true,
+  };
+
+  void _toggleSection(String sectionTitle) {
+    setState(() {
+      _sectionExpanded[sectionTitle] =
+          !(_sectionExpanded[sectionTitle] ?? true);
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     final guildState = ref.watch(guildProvider);
@@ -43,7 +57,9 @@ class _ChannelSidebarState extends ConsumerState<ChannelSidebar> {
 
     // Fetch channels if not already loaded
     final channels = channelState.getChannelsForGuild(selectedGuildId);
-    if (channels.isEmpty && !channelState.isLoading) {
+    // Only fetch if not already fetched and not currently loading
+    if (!channelState.isGuildFetched(selectedGuildId) &&
+        !channelState.isLoading) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         ref.read(channelProvider.notifier).fetchChannels(selectedGuildId);
       });
@@ -86,6 +102,30 @@ class _ChannelSidebarState extends ConsumerState<ChannelSidebar> {
                         ),
                         overflow: TextOverflow.ellipsis,
                       ),
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.person_add, size: 20),
+                      onPressed: () {
+                        showDialog(
+                          context: context,
+                          barrierColor: Colors.black.withOpacity(0.7),
+                          builder: (context) => InviteModal(
+                            open: true,
+                            onOpenChange: (open) {
+                              if (!open) {
+                                Navigator.of(context).pop();
+                              }
+                            },
+                            guildId: selectedGuildId,
+                          ),
+                        );
+                      },
+                      padding: EdgeInsets.zero,
+                      constraints: const BoxConstraints(),
+                      color: Theme.of(
+                        context,
+                      ).colorScheme.onSurface.withOpacity(0.6),
+                      tooltip: 'Invite Friends',
                     ),
                   ],
                 ),
@@ -146,6 +186,9 @@ class _ChannelSidebarState extends ConsumerState<ChannelSidebar> {
                               );
                             },
                             icon: Icons.tag,
+                            isExpanded:
+                                _sectionExpanded['TEXT CHANNELS'] ?? true,
+                            onToggle: () => _toggleSection('TEXT CHANNELS'),
                           ),
                           const SizedBox(height: 16),
                           // Voice Channels Section
@@ -176,6 +219,9 @@ class _ChannelSidebarState extends ConsumerState<ChannelSidebar> {
                               );
                             },
                             icon: Icons.mic,
+                            isExpanded:
+                                _sectionExpanded['VOICE CHANNELS'] ?? true,
+                            onToggle: () => _toggleSection('VOICE CHANNELS'),
                           ),
                         ],
                       ),
@@ -195,6 +241,8 @@ class _ChannelSection extends StatelessWidget {
   final void Function(ChannelDto) onChannelTap;
   final VoidCallback onCreateChannel;
   final IconData icon;
+  final bool isExpanded;
+  final VoidCallback onToggle;
 
   const _ChannelSection({
     required this.title,
@@ -203,6 +251,8 @@ class _ChannelSection extends StatelessWidget {
     required this.onChannelTap,
     required this.onCreateChannel,
     required this.icon,
+    required this.isExpanded,
+    required this.onToggle,
   });
 
   @override
@@ -211,43 +261,66 @@ class _ChannelSection extends StatelessWidget {
       return const SizedBox.shrink();
     }
 
+    // If collapsed, only show selected channel (if any)
+    final channelsToShow = isExpanded
+        ? channels
+        : channels.where((c) => c.id == selectedChannelId).toList();
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-          child: Row(
-            children: [
-              Expanded(
-                child: Text(
-                  title,
-                  style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                    color: Theme.of(
-                      context,
-                    ).colorScheme.onSurface.withOpacity(0.6),
-                    letterSpacing: 0.5,
+        InkWell(
+          onTap: onToggle,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+            child: Row(
+              children: [
+                Icon(
+                  isExpanded
+                      ? Icons.keyboard_arrow_down
+                      : Icons.keyboard_arrow_right,
+                  size: 14,
+                  color: Theme.of(
+                    context,
+                  ).colorScheme.onSurface.withOpacity(0.6),
+                ),
+                const SizedBox(width: 4),
+                Expanded(
+                  child: Text(
+                    title,
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
+                      color: Theme.of(
+                        context,
+                      ).colorScheme.onSurface.withOpacity(0.6),
+                      letterSpacing: 0.5,
+                    ),
                   ),
                 ),
-              ),
-              IconButton(
-                icon: const Icon(Icons.add, size: 16),
-                onPressed: onCreateChannel,
-                padding: EdgeInsets.zero,
-                constraints: const BoxConstraints(),
-                color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6),
-              ),
-            ],
+                IconButton(
+                  icon: const Icon(Icons.add, size: 16),
+                  onPressed: onCreateChannel,
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints(),
+                  color: Theme.of(
+                    context,
+                  ).colorScheme.onSurface.withOpacity(0.6),
+                ),
+              ],
+            ),
           ),
         ),
-        const SizedBox(height: 4),
-        ...channels.map(
-          (channel) => _ChannelItem(
-            channel: channel,
-            isSelected: selectedChannelId == channel.id,
-            icon: icon,
-            onTap: () => onChannelTap(channel),
+        const SizedBox(height: 1),
+        ...channelsToShow.map(
+          (channel) => Padding(
+            padding: const EdgeInsets.only(left: 8),
+            child: _ChannelItem(
+              channel: channel,
+              isSelected: selectedChannelId == channel.id,
+              icon: icon,
+              onTap: () => onChannelTap(channel),
+            ),
           ),
         ),
       ],

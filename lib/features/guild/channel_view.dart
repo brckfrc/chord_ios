@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../providers/channel_provider.dart';
 import '../../models/guild/channel_type.dart';
+import '../modals/create_channel_modal.dart';
 
 /// Channel view showing messages and content
 class ChannelView extends ConsumerWidget {
@@ -19,6 +20,72 @@ class ChannelView extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final channelState = ref.watch(channelProvider);
     final channels = channelState.getChannelsForGuild(guildId);
+    
+    // If no channels exist and not loading, show empty state
+    if (channels.isEmpty && !channelState.isLoading) {
+      return Scaffold(
+        backgroundColor: Theme.of(context).colorScheme.surface,
+        body: SafeArea(
+          child: Center(
+            child: Padding(
+              padding: const EdgeInsets.all(24),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Icon(
+                    Icons.tag,
+                    size: 64,
+                    color: Colors.grey,
+                  ),
+                  const SizedBox(height: 16),
+                  Text(
+                    'No channels yet',
+                    style: TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                      color: Theme.of(context).colorScheme.onSurface,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Create a channel to get started',
+                    style: TextStyle(
+                      color: Theme.of(context)
+                          .colorScheme
+                          .onSurface
+                          .withOpacity(0.6),
+                      fontSize: 14,
+                    ),
+                  ),
+                  const SizedBox(height: 24),
+                  ElevatedButton.icon(
+                    onPressed: () {
+                      showDialog(
+                        context: context,
+                        barrierColor: Colors.black.withOpacity(0.7),
+                        builder: (context) => CreateChannelModal(
+                          open: true,
+                          onOpenChange: (open) {
+                            if (!open) {
+                              Navigator.of(context).pop();
+                            }
+                          },
+                          guildId: guildId,
+                          defaultChannelType: ChannelType.text,
+                        ),
+                      );
+                    },
+                    icon: const Icon(Icons.add, size: 20),
+                    label: const Text('Create Channel'),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+    
     final channel = channels.isNotEmpty
         ? channels.firstWhere(
             (c) => c.id == channelId,
@@ -31,7 +98,58 @@ class ChannelView extends ConsumerWidget {
       ref.read(channelProvider.notifier).setSelectedChannel(channelId);
     });
 
-    // If channel not found, show loading/error
+    // If channel not found and channels exist, show error
+    if (channel == null && channels.isNotEmpty) {
+      return Scaffold(
+        backgroundColor: Theme.of(context).colorScheme.surface,
+        body: SafeArea(
+          child: Center(
+            child: Padding(
+              padding: const EdgeInsets.all(24),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Icon(
+                    Icons.error_outline,
+                    size: 64,
+                    color: Colors.grey,
+                  ),
+                  const SizedBox(height: 16),
+                  Text(
+                    'Channel not found',
+                    style: TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                      color: Theme.of(context).colorScheme.onSurface,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'This channel could not be found.',
+                    style: TextStyle(
+                      color: Theme.of(context)
+                          .colorScheme
+                          .onSurface
+                          .withOpacity(0.6),
+                      fontSize: 14,
+                    ),
+                  ),
+                  const SizedBox(height: 24),
+                  ElevatedButton(
+                    onPressed: () {
+                      context.go('/guilds/$guildId');
+                    },
+                    child: const Text('Go Back'),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+
+    // If still loading, show loading
     if (channel == null) {
       return Scaffold(
         backgroundColor: Theme.of(context).colorScheme.surface,

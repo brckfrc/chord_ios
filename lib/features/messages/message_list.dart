@@ -6,10 +6,12 @@ import 'message_item.dart';
 /// Message list widget with infinite scroll
 class MessageList extends ConsumerStatefulWidget {
   final String channelId;
+  final String? scrollToMessageId; // Optional message ID to scroll to
 
   const MessageList({
     super.key,
     required this.channelId,
+    this.scrollToMessageId,
   });
 
   @override
@@ -19,6 +21,7 @@ class MessageList extends ConsumerStatefulWidget {
 class _MessageListState extends ConsumerState<MessageList> {
   final ScrollController _scrollController = ScrollController();
   bool _isLoadingMore = false;
+  String? _lastScrolledMessageId;
 
   @override
   void initState() {
@@ -30,6 +33,53 @@ class _MessageListState extends ConsumerState<MessageList> {
 
     // Listen to scroll for pagination
     _scrollController.addListener(_onScroll);
+  }
+
+  @override
+  void didUpdateWidget(MessageList oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // Scroll to message if scrollToMessageId changed
+    if (widget.scrollToMessageId != null &&
+        widget.scrollToMessageId != _lastScrolledMessageId) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _scrollToMessage(widget.scrollToMessageId!);
+      });
+    }
+  }
+
+  void _scrollToMessage(String messageId) {
+    final messageState = ref.read(messageProvider);
+    final messages = messageState.getMessagesForChannel(widget.channelId);
+    
+    // Find message index
+    final messageIndex = messages.indexWhere((m) => m.id == messageId);
+    if (messageIndex < 0) {
+      // Message not found, might need to load more
+      return;
+    }
+
+    // Calculate scroll position (reverse list, so we need to calculate from bottom)
+    // In reverse list, index 0 is at the bottom
+    final itemCount = messages.length;
+    final targetIndex = itemCount - 1 - messageIndex;
+    
+    // Wait for layout to complete
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (_scrollController.hasClients) {
+        // Calculate approximate position (each message is roughly 60-80px)
+        final estimatedItemHeight = 70.0;
+        final targetPosition = targetIndex * estimatedItemHeight;
+        
+        // Scroll to position
+        _scrollController.animateTo(
+          targetPosition,
+          duration: const Duration(milliseconds: 500),
+          curve: Curves.easeInOut,
+        );
+        
+        _lastScrolledMessageId = messageId;
+      }
+    });
   }
 
   @override

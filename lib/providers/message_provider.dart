@@ -8,6 +8,8 @@ import '../services/network/connectivity_service.dart';
 import '../services/database/message_cache_service.dart';
 import 'signalr/chat_hub_provider.dart';
 import 'auth_provider.dart';
+import 'mention_provider.dart';
+import '../models/mention/message_mention_dto.dart';
 
 /// Message state for a channel
 class MessageState {
@@ -165,7 +167,8 @@ class MessageNotifier extends StateNotifier<MessageState> {
           final message = MessageDto.fromJson(messageJson);
 
           // Check if we have a pending message with same content from current user
-          final channelMessages = state.messagesByChannel[message.channelId] ?? [];
+          final channelMessages =
+              state.messagesByChannel[message.channelId] ?? [];
           final authState = _ref.read(authProvider);
           final currentUserId = authState.user?.id;
 
@@ -262,6 +265,42 @@ class MessageNotifier extends StateNotifier<MessageState> {
             final channelId = data['channelId']?.toString() ?? '';
             final userId = data['userId']?.toString() ?? '';
             _removeTypingUser(channelId, userId);
+          }
+        } catch (e) {
+          // Ignore parsing errors
+        }
+      }
+    });
+
+    // Listen to UserMentioned event
+    chatHub.on('UserMentioned', (args) {
+      if (args != null && args.length >= 1) {
+        try {
+          // args[0] should be MessageMentionDto JSON
+          if (args[0] is Map) {
+            final mentionJson = args[0] as Map<String, dynamic>;
+            final mention = MessageMentionDto.fromJson(mentionJson);
+
+            // Check if mention is for current user
+            final authState = _ref.read(authProvider);
+            final currentUserId = authState.user?.id;
+
+            // Ignore if user mentioned themselves
+            if (currentUserId != null &&
+                mention.mentionedUserId == currentUserId) {
+              return;
+            }
+
+            // Add mention to mention provider
+            _ref.read(mentionProvider.notifier).addMention(mention);
+
+            // Refresh unread count
+            _ref.read(mentionProvider.notifier).fetchUnreadMentionCount();
+
+            // Show in-app notification (foreground only)
+            // Note: We can't access BuildContext here, so we'll use a global navigator key
+            // For now, we'll just update the state - UI can show notification based on state
+            // In a real app, you'd use a notification service or overlay
           }
         } catch (e) {
           // Ignore parsing errors

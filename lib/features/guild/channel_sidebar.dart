@@ -8,6 +8,7 @@ import '../../models/guild/channel_type.dart';
 import '../../features/modals/create_channel_modal.dart';
 import '../../features/modals/invite_modal.dart';
 import '../../shared/widgets/app_loading.dart';
+import '../../providers/mention_provider.dart';
 
 /// Channel sidebar widget
 class ChannelSidebar extends ConsumerStatefulWidget {
@@ -106,6 +107,60 @@ class _ChannelSidebarState extends ConsumerState<ChannelSidebar> {
                         ),
                         overflow: TextOverflow.ellipsis,
                       ),
+                    ),
+                    // Mentions button with badge
+                    Consumer(
+                      builder: (context, ref, child) {
+                        final mentionState = ref.watch(mentionProvider);
+                        final unreadCount = mentionState.unreadCount;
+                        return Stack(
+                          children: [
+                            IconButton(
+                              icon: const Icon(Icons.alternate_email, size: 20),
+                              onPressed: () {
+                                context.go('/mentions');
+                              },
+                              padding: EdgeInsets.zero,
+                              constraints: const BoxConstraints(),
+                              color: Theme.of(
+                                context,
+                              ).colorScheme.onSurface.withOpacity(0.6),
+                              tooltip: 'Mentions',
+                            ),
+                            if (unreadCount > 0)
+                              Positioned(
+                                right: 4,
+                                top: 4,
+                                child: Container(
+                                  padding: const EdgeInsets.all(4),
+                                  decoration: BoxDecoration(
+                                    color: Theme.of(context).colorScheme.error,
+                                    shape: BoxShape.circle,
+                                  ),
+                                  constraints: const BoxConstraints(
+                                    minWidth: 12,
+                                    minHeight: 12,
+                                  ),
+                                  child: unreadCount > 9
+                                      ? const SizedBox.shrink()
+                                      : Text(
+                                          unreadCount > 9
+                                              ? '9+'
+                                              : '$unreadCount',
+                                          style: TextStyle(
+                                            fontSize: 8,
+                                            fontWeight: FontWeight.w600,
+                                            color: Theme.of(
+                                              context,
+                                            ).colorScheme.onError,
+                                          ),
+                                          textAlign: TextAlign.center,
+                                        ),
+                                ),
+                              ),
+                          ],
+                        );
+                      },
                     ),
                     IconButton(
                       icon: const Icon(Icons.person_add, size: 20),

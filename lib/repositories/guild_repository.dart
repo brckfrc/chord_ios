@@ -1,5 +1,6 @@
 import 'package:dio/dio.dart';
 import '../models/guild/guild_dto.dart';
+import '../models/guild/guild_member_dto.dart';
 import '../models/guild/create_guild_dto.dart';
 import '../services/api/api_client.dart';
 
@@ -46,6 +47,25 @@ class GuildRepository {
       throw Exception(e.response?.data['message'] ?? 'Failed to create guild');
     } catch (e) {
       throw Exception('Failed to create guild: ${e.toString()}');
+    }
+  }
+
+  /// Get all members of a guild
+  Future<List<GuildMemberDto>> getGuildMembers(String guildId) async {
+    try {
+      final response = await _apiClient.get('/guilds/$guildId/members');
+      final List<dynamic> data = response.data as List<dynamic>;
+      return data
+          .map((json) => GuildMemberDto.fromJson(
+                json as Map<String, dynamic>,
+              ))
+          .toList();
+    } on DioException catch (e) {
+      throw Exception(
+        e.response?.data['message'] ?? 'Failed to fetch guild members',
+      );
+    } catch (e) {
+      throw Exception('Failed to fetch guild members: ${e.toString()}');
     }
   }
 }

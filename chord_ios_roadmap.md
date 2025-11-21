@@ -189,28 +189,31 @@
 
 ## 🏗️ FAZ 5.5: MENTIONS & NOTIFICATIONS ⭐
 
-**Durum**: ⏳ Başlanmadı
+**Durum**: ✅ TAMAMLANDI (2025-01-XX)
 
 **Süre**: ~1-2 gün
 
 **Backend Bağımlılığı**: ✅ TAMAMLANDI (Backend'de mentions API'leri ve SignalR event'leri hazır)
 **Frontend Referans**: `MentionsPanel.tsx`, `MessageComposer.tsx` (React frontend'deki implementasyon)
 
-**Not**: Backend'de mentions özelliği tamamlandı (MessageMention entity, API endpoints, ChatHub UserMentioned event). Mobil app'te frontend implementasyonu yapılacak.
+**Not**:
+
+- Backend'de mentions özelliği tamamlandı (MessageMention entity, API endpoints, ChatHub UserMentioned event). Mobil app'te frontend implementasyonu yapıldı.
+- Self-mention ignore özelliği eklendi: Kullanıcı kendisini mention edemez (autocomplete'te görünmez) ve kendi mention'ları için notification gösterilmez.
 
 ### Görevler
 
-- [ ] Mention DTO model (`MessageMentionDto`, `UnreadMentionCountDto`)
-- [ ] Mentions API client (`getUserMentions`, `getUnreadMentionCount`, `markMentionAsRead`)
-- [ ] Mentions repository (API çağrıları)
-- [ ] Mentions provider (Riverpod state management)
-- [ ] MessageComposer: @ mention autocomplete (guild members listesi, dropdown)
-- [ ] MessageItem: Mention highlight (mavi arka plan, @username pattern matching)
-- [ ] MentionsPanel widget (unread/read mentions listesi, scrollable)
-- [ ] Badge on user avatar/header (unread mention count)
-- [ ] ChatHub: UserMentioned event listener (SignalR'dan mention geldiğinde state güncelle)
-- [ ] Click to jump (mention'a tıklayınca ilgili mesaja scroll)
-- [ ] Local notification (foreground'da mention geldiğinde in-app notification - `flutter_local_notifications` veya custom overlay)
+- [x] Mention DTO model (`MessageMentionDto`, `UnreadMentionCountDto`)
+- [x] Mentions API client (`getUserMentions`, `getUnreadMentionCount`, `markMentionAsRead`)
+- [x] Mentions repository (API çağrıları)
+- [x] Mentions provider (Riverpod state management)
+- [x] MessageComposer: @ mention autocomplete (guild members listesi, dropdown, self-mention filter)
+- [x] MessageItem: Mention highlight (mavi arka plan, @username pattern matching)
+- [x] MentionsPanel widget (unread/read mentions listesi, scrollable)
+- [x] Badge on user avatar/header (unread mention count)
+- [x] ChatHub: UserMentioned event listener (SignalR'dan mention geldiğinde state güncelle, self-mention ignore)
+- [x] Click to jump (mention'a tıklayınca ilgili mesaja scroll)
+- [x] Local notification (foreground'da mention geldiğinde in-app notification - state-based)
 
 ### Deliverables
 
@@ -395,7 +398,7 @@
 2. **FAZ 3**: Guild/Channel UI (Backend hazır ✅) - ✅ TAMAMLANDI
 3. **FAZ 4**: Messaging + SignalR (Backend hazır ✅) - ✅ TAMAMLANDI
 4. **FAZ 5**: Presence (Backend hazır ✅)
-5. **FAZ 5.5**: Mentions & Notifications (Backend hazır ✅) - ⏳ SIRADA
+5. **FAZ 5.5**: Mentions & Notifications (Backend hazır ✅) - ✅ TAMAMLANDI
 6. **FAZ 6-7**: Voice channels + WebRTC (Backend FAZ 8'de yapılacak, iOS önce başlayabilir)
 7. **FAZ 8**: File upload (Backend FAZ 7'de yapılacak, iOS önce başlayabilir)
 8. **FAZ 9**: Push notifications (Backend FAZ 5.5'te mentions tamamlandı ✅)

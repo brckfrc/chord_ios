@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../models/message/message_dto.dart';
+import '../../providers/auth_provider.dart';
 
 /// Message item widget with Discord-like grouping
-class MessageItem extends StatelessWidget {
+class MessageItem extends ConsumerWidget {
   final MessageDto message;
   final MessageDto? previousMessage;
   final bool isGrouped; // If true, hide avatar and username (grouped with previous)
@@ -50,11 +52,90 @@ class MessageItem extends StatelessWidget {
     }
   }
 
+  /// Build mention-highlighted text
+  List<TextSpan> _buildMentionText(
+    BuildContext context,
+    String text,
+    String? currentUserId,
+  ) {
+    final spans = <TextSpan>[];
+    final mentionPattern = RegExp(r'@(\w+)');
+    int lastIndex = 0;
+
+    for (final match in mentionPattern.allMatches(text)) {
+      // Add text before mention
+      if (match.start > lastIndex) {
+        spans.add(
+          TextSpan(
+            text: text.substring(lastIndex, match.start),
+            style: TextStyle(
+              fontSize: 16,
+              color: Theme.of(context).colorScheme.onSurface,
+              height: 1.375,
+            ),
+          ),
+        );
+      }
+
+      // Add mention with highlight
+      final mentionText = match.group(0)!; // Full match: @username
+      spans.add(
+        TextSpan(
+          text: mentionText,
+          style: TextStyle(
+            fontSize: 16,
+            color: Theme.of(context).colorScheme.primary,
+            backgroundColor: Theme.of(context)
+                .colorScheme
+                .primaryContainer
+                .withOpacity(0.3),
+            height: 1.375,
+            fontWeight: FontWeight.w500,
+          ),
+        ),
+      );
+
+      lastIndex = match.end;
+    }
+
+    // Add remaining text
+    if (lastIndex < text.length) {
+      spans.add(
+        TextSpan(
+          text: text.substring(lastIndex),
+          style: TextStyle(
+            fontSize: 16,
+            color: Theme.of(context).colorScheme.onSurface,
+            height: 1.375,
+          ),
+        ),
+      );
+    }
+
+    // If no mentions found, return plain text
+    if (spans.isEmpty) {
+      spans.add(
+        TextSpan(
+          text: text,
+          style: TextStyle(
+            fontSize: 16,
+            color: Theme.of(context).colorScheme.onSurface,
+            height: 1.375,
+          ),
+        ),
+      );
+    }
+
+    return spans;
+  }
+
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final user = message.user;
     final displayName = user?.displayName ?? user?.username ?? 'Unknown';
     final isPending = message.isPending;
+    final authState = ref.watch(authProvider);
+    final currentUserId = authState.user?.id;
 
     return Opacity(
       opacity: isPending ? 0.6 : 1.0, // Pending mesajlar yarı saydam
@@ -134,17 +215,18 @@ class MessageItem extends StatelessWidget {
                     ),
                     const SizedBox(height: 4),
                   ],
-                  // Message content with pending indicator
+                  // Message content with pending indicator and mention highlight
                   Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Expanded(
-                        child: Text(
-                          message.content,
-                          style: TextStyle(
-                            fontSize: 16,
-                            color: Theme.of(context).colorScheme.onSurface,
-                            height: 1.375,
+                        child: RichText(
+                          text: TextSpan(
+                            children: _buildMentionText(
+                              context,
+                              message.content,
+                              currentUserId,
+                            ),
                           ),
                         ),
                       ),

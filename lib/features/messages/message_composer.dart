@@ -6,14 +6,18 @@ import '../../providers/signalr/chat_hub_provider.dart';
 import '../../models/message/create_message_dto.dart';
 import '../../providers/auth_provider.dart';
 import '../../models/auth/user_dto.dart';
+import '../../models/guild/guild_member_dto.dart';
+import '../../repositories/guild_repository.dart';
 
-/// Message composer widget with typing indicator
+/// Message composer widget with typing indicator and @ mention autocomplete
 class MessageComposer extends ConsumerStatefulWidget {
   final String channelId;
+  final String guildId;
 
   const MessageComposer({
     super.key,
     required this.channelId,
+    required this.guildId,
   });
 
   @override
@@ -26,21 +30,226 @@ class _MessageComposerState extends ConsumerState<MessageComposer> {
   bool _isSending = false;
   Timer? _typingTimer;
 
+  // Mention autocomplete state
+  List<GuildMemberDto> _guildMembers = [];
+  bool _isLoadingMembers = false;
+  String? _mentionQuery;
+  int? _mentionStartIndex;
+  int _selectedMentionIndex = 0;
+  final LayerLink _mentionLayerLink = LayerLink();
+  OverlayEntry? _overlayEntry; // Overlay entry'yi state'te tut
+
+  @override
+  void initState() {
+    super.initState();
+    _controller.addListener(_onTextChanged);
+    _loadGuildMembers();
+  }
+
   @override
   void dispose() {
+    _controller.removeListener(_onTextChanged);
     _controller.dispose();
     _focusNode.dispose();
     _typingTimer?.cancel();
+    _removeOverlay(); // Overlay'i temizle
     super.dispose();
+  }
+
+  /// Load guild members for mention autocomplete
+  Future<void> _loadGuildMembers() async {
+    if (_isLoadingMembers) return;
+
+    setState(() {
+      _isLoadingMembers = true;
+    });
+
+    try {
+      final repository = GuildRepository();
+      final members = await repository.getGuildMembers(widget.guildId);
+
+      if (mounted) {
+        setState(() {
+          _guildMembers = members;
+          _isLoadingMembers = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _isLoadingMembers = false;
+        });
+      }
+    }
+  }
+
+  /// Remove overlay entry
+  void _removeOverlay() {
+    _overlayEntry?.remove();
+    _overlayEntry = null;
+  }
+
+  /// Show overlay entry
+  void _showOverlay() {
+    if (_overlayEntry != null) {
+      _overlayEntry!.markNeedsBuild();
+      return;
+    }
+
+    _overlayEntry = OverlayEntry(
+      builder: (context) => Stack(
+        children: [
+          Positioned(
+            child: CompositedTransformFollower(
+              link: _mentionLayerLink,
+              showWhenUnlinked: false,
+              followerAnchor: Alignment.bottomLeft,
+              targetAnchor: Alignment.topLeft,
+              offset: const Offset(0, -4), // Boşluğu azalttık
+              child: Material(
+                elevation: 8,
+                borderRadius: BorderRadius.circular(8),
+                color: Theme.of(context).colorScheme.surface,
+                child: ConstrainedBox(
+                  constraints: BoxConstraints(
+                    minWidth: 200, // Minimum genişlik
+                    maxWidth:
+                        MediaQuery.of(context).size.width *
+                        0.75, // Genişliği biraz azalttık
+                    maxHeight: 200,
+                  ),
+                  child: Container(
+                    constraints: const BoxConstraints(
+                      minHeight: 40,
+                      maxHeight: 200,
+                    ),
+                    width: double.infinity,
+                    child: _getFilteredMembers().isEmpty
+                        ? Padding(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 8,
+                            ), // Padding'leri azalttık
+                            child: Text(
+                              'No members found',
+                              style: TextStyle(
+                                color: Theme.of(
+                                  context,
+                                ).colorScheme.onSurface.withOpacity(0.6),
+                              ),
+                            ),
+                          )
+                        : ListView.builder(
+                            shrinkWrap: true,
+                            itemCount: _getFilteredMembers().length,
+                            itemBuilder: (context, index) {
+                              final member = _getFilteredMembers()[index];
+                              final isSelected = index == _selectedMentionIndex;
+                              return InkWell(
+                                onTap: () => _insertMention(member),
+                                child: Container(
+                                  color: isSelected
+                                      ? Theme.of(
+                                          context,
+                                        ).colorScheme.surfaceContainerHighest
+                                      : Colors.transparent,
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 12, // Padding'leri azalttık
+                                    vertical: 8, // Padding'leri azalttık
+                                  ),
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize
+                                        .min, // İçeriğe göre genişlik
+                                    children: [
+                                      CircleAvatar(
+                                        radius:
+                                            14, // Avatar boyutunu biraz küçülttük
+                                        backgroundColor: Theme.of(
+                                          context,
+                                        ).colorScheme.primaryContainer,
+                                        backgroundImage:
+                                            member.user?.avatarUrl != null
+                                            ? NetworkImage(
+                                                member.user!.avatarUrl!,
+                                              )
+                                            : null,
+                                        child: member.user?.avatarUrl == null
+                                            ? Text(
+                                                member.displayName.isNotEmpty
+                                                    ? member.displayName[0]
+                                                          .toUpperCase()
+                                                    : '?',
+                                                style: TextStyle(
+                                                  color: Theme.of(context)
+                                                      .colorScheme
+                                                      .onPrimaryContainer,
+                                                  fontSize:
+                                                      11, // Font boyutunu küçülttük
+                                                ),
+                                              )
+                                            : null,
+                                      ),
+                                      const SizedBox(
+                                        width: 10,
+                                      ), // Boşluğu azalttık
+                                      Flexible(
+                                        child: Column(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.start,
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            Text(
+                                              member.displayName,
+                                              style: TextStyle(
+                                                fontWeight: FontWeight.w600,
+                                                fontSize:
+                                                    14, // Font boyutunu küçülttük
+                                                color: Theme.of(
+                                                  context,
+                                                ).colorScheme.onSurface,
+                                              ),
+                                              overflow: TextOverflow.ellipsis,
+                                            ),
+                                            Text(
+                                              '@${member.username}',
+                                              style: TextStyle(
+                                                fontSize:
+                                                    11, // Font boyutunu küçülttük
+                                                color: Theme.of(context)
+                                                    .colorScheme
+                                                    .onSurface
+                                                    .withOpacity(0.6),
+                                              ),
+                                              overflow: TextOverflow.ellipsis,
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              );
+                            },
+                          ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+
+    Overlay.of(context).insert(_overlayEntry!);
   }
 
   String _formatTypingIndicator(List<UserDto> users) {
     if (users.isEmpty) return '';
-    
+
     final names = users
         .map((user) => user.displayName ?? user.username)
         .toList();
-    
+
     if (names.length == 1) {
       return '${names[0]} is typing...';
     } else if (names.length == 2) {
@@ -50,7 +259,11 @@ class _MessageComposerState extends ConsumerState<MessageComposer> {
     }
   }
 
-  void _onTextChanged(String text) {
+  void _onTextChanged() {
+    final text = _controller.text;
+    final selection = _controller.selection;
+    final cursorPosition = selection.baseOffset;
+
     // Send typing indicator
     _sendTypingIndicator();
 
@@ -61,13 +274,46 @@ class _MessageComposerState extends ConsumerState<MessageComposer> {
     _typingTimer = Timer(const Duration(seconds: 3), () {
       _stopTypingIndicator();
     });
+
+    // Check for @ mention pattern
+    if (cursorPosition > 0) {
+      final textBeforeCursor = text.substring(0, cursorPosition);
+      final mentionMatch = RegExp(r'@(\w*)$').firstMatch(textBeforeCursor);
+
+      if (mentionMatch != null) {
+        final matchIndex = textBeforeCursor.lastIndexOf('@');
+        setState(() {
+          _mentionStartIndex = matchIndex;
+          _mentionQuery = mentionMatch.group(1) ?? '';
+          _selectedMentionIndex = 0;
+        });
+        // Overlay'i göster
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) _showOverlay();
+        });
+      } else {
+        setState(() {
+          _mentionStartIndex = null;
+          _mentionQuery = null;
+        });
+        // Overlay'i kaldır
+        _removeOverlay();
+      }
+    } else {
+      setState(() {
+        _mentionStartIndex = null;
+        _mentionQuery = null;
+      });
+      // Overlay'i kaldır
+      _removeOverlay();
+    }
   }
 
   Future<void> _sendTypingIndicator() async {
     try {
       final chatHub = ref.read(chatHubProvider.notifier);
       final chatHubState = ref.read(chatHubProvider);
-      
+
       // Connection yoksa başlatmayı dene
       if (!chatHubState.isConnected) {
         await chatHub.start();
@@ -77,7 +323,7 @@ class _MessageComposerState extends ConsumerState<MessageComposer> {
           return;
         }
       }
-      
+
       // Backend'deki method ismi: Typing (SendTyping değil)
       await chatHub.invoke('Typing', args: [widget.channelId]);
     } catch (e) {
@@ -89,7 +335,7 @@ class _MessageComposerState extends ConsumerState<MessageComposer> {
     try {
       final chatHub = ref.read(chatHubProvider.notifier);
       final chatHubState = ref.read(chatHubProvider);
-      
+
       // Connection yoksa başlatmayı dene
       if (!chatHubState.isConnected) {
         await chatHub.start();
@@ -99,14 +345,77 @@ class _MessageComposerState extends ConsumerState<MessageComposer> {
           return;
         }
       }
-      
+
       await chatHub.invoke('StopTyping', args: [widget.channelId]);
     } catch (e) {
       // Ignore errors
     }
   }
 
+  /// Insert mention into text
+  void _insertMention(GuildMemberDto member) {
+    if (_mentionStartIndex == null) return;
+
+    final username = member.username;
+    final beforeMention = _controller.text.substring(0, _mentionStartIndex!);
+    final afterMention = _controller.text.substring(
+      _controller.selection.baseOffset,
+    );
+    final newContent = '$beforeMention@$username $afterMention';
+
+    _controller.value = TextEditingValue(
+      text: newContent,
+      selection: TextSelection.collapsed(
+        offset:
+            beforeMention.length + username.length + 2, // +2 for @ and space
+      ),
+    );
+
+    setState(() {
+      _mentionStartIndex = null;
+      _mentionQuery = null;
+    });
+    // Overlay'i kaldır
+    _removeOverlay();
+  }
+
+  /// Get filtered members for autocomplete
+  List<GuildMemberDto> _getFilteredMembers() {
+    // Get current user ID to filter out self
+    final authState = ref.read(authProvider);
+    final currentUserId = authState.user?.id;
+
+    // Filter out current user from members
+    final filteredMembers = _guildMembers.where((member) {
+      return member.user?.id != currentUserId;
+    }).toList();
+
+    if (_mentionQuery == null || _mentionQuery!.isEmpty) {
+      return filteredMembers.take(10).toList();
+    }
+
+    final query = _mentionQuery!.toLowerCase();
+    return filteredMembers
+        .where((member) {
+          final username = member.username.toLowerCase();
+          final displayName = member.displayName.toLowerCase();
+          return username.startsWith(query) || displayName.startsWith(query);
+        })
+        .take(10)
+        .toList();
+  }
+
   Future<void> _sendMessage() async {
+    // If mention autocomplete is open, close it first
+    if (_mentionStartIndex != null) {
+      setState(() {
+        _mentionStartIndex = null;
+        _mentionQuery = null;
+      });
+      _removeOverlay();
+      return;
+    }
+
     final content = _controller.text.trim();
     if (content.isEmpty || _isSending) return;
 
@@ -116,10 +425,9 @@ class _MessageComposerState extends ConsumerState<MessageComposer> {
 
     try {
       final dto = CreateMessageDto(content: content);
-      await ref.read(messageProvider.notifier).createMessage(
-            widget.channelId,
-            dto,
-          );
+      await ref
+          .read(messageProvider.notifier)
+          .createMessage(widget.channelId, dto);
 
       _controller.clear();
       _stopTypingIndicator();
@@ -168,10 +476,9 @@ class _MessageComposerState extends ConsumerState<MessageComposer> {
                 style: TextStyle(
                   fontSize: 12,
                   fontStyle: FontStyle.italic,
-                  color: Theme.of(context)
-                      .colorScheme
-                      .onSurface
-                      .withOpacity(0.6),
+                  color: Theme.of(
+                    context,
+                  ).colorScheme.onSurface.withOpacity(0.6),
                 ),
               ),
             ),
@@ -192,24 +499,38 @@ class _MessageComposerState extends ConsumerState<MessageComposer> {
             children: [
               // Text input
               Expanded(
-                child: TextField(
-                  controller: _controller,
-                  focusNode: _focusNode,
-                  onChanged: _onTextChanged,
-                  maxLines: null,
-                  minLines: 1,
-                  textInputAction: TextInputAction.send,
-                  onSubmitted: (_) => _sendMessage(),
-                  decoration: InputDecoration(
-                    hintText: 'Message #channel',
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    filled: true,
-                    fillColor: Theme.of(context).colorScheme.surfaceContainerHighest,
-                    contentPadding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 12,
+                child: CompositedTransformTarget(
+                  link: _mentionLayerLink,
+                  child: TextField(
+                    controller: _controller,
+                    focusNode: _focusNode,
+                    maxLines: null,
+                    minLines: 1,
+                    textInputAction: TextInputAction.send,
+                    onSubmitted: (_) {
+                      // If mention autocomplete is open, select first mention
+                      if (_mentionStartIndex != null) {
+                        final filtered = _getFilteredMembers();
+                        if (filtered.isNotEmpty) {
+                          _insertMention(filtered[_selectedMentionIndex]);
+                          return;
+                        }
+                      }
+                      _sendMessage();
+                    },
+                    decoration: InputDecoration(
+                      hintText: 'Message #channel',
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      filled: true,
+                      fillColor: Theme.of(
+                        context,
+                      ).colorScheme.surfaceContainerHighest,
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 12,
+                      ),
                     ),
                   ),
                 ),
@@ -238,4 +559,3 @@ class _MessageComposerState extends ConsumerState<MessageComposer> {
     );
   }
 }
-

@@ -62,7 +62,11 @@ class _ChannelViewState extends ConsumerState<ChannelView> {
   Widget build(BuildContext context) {
     final channelState = ref.watch(channelProvider);
     final channels = channelState.getChannelsForGuild(widget.guildId);
-    
+
+    // Get messageId from query parameters (for scroll to message)
+    final routerState = GoRouterState.of(context);
+    final scrollToMessageId = routerState.uri.queryParameters['messageId'];
+
     // If no channels exist and not loading, show empty state
     if (channels.isEmpty && !channelState.isLoading) {
       return Scaffold(
@@ -74,11 +78,7 @@ class _ChannelViewState extends ConsumerState<ChannelView> {
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  const Icon(
-                    Icons.tag,
-                    size: 64,
-                    color: Colors.grey,
-                  ),
+                  const Icon(Icons.tag, size: 64, color: Colors.grey),
                   const SizedBox(height: 16),
                   Text(
                     'No channels yet',
@@ -92,10 +92,9 @@ class _ChannelViewState extends ConsumerState<ChannelView> {
                   Text(
                     'Create a channel to get started',
                     style: TextStyle(
-                      color: Theme.of(context)
-                          .colorScheme
-                          .onSurface
-                          .withOpacity(0.6),
+                      color: Theme.of(
+                        context,
+                      ).colorScheme.onSurface.withOpacity(0.6),
                       fontSize: 14,
                     ),
                   ),
@@ -127,7 +126,7 @@ class _ChannelViewState extends ConsumerState<ChannelView> {
         ),
       );
     }
-    
+
     final channel = channels.isNotEmpty
         ? channels.firstWhere(
             (c) => c.id == widget.channelId,
@@ -151,11 +150,7 @@ class _ChannelViewState extends ConsumerState<ChannelView> {
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  const Icon(
-                    Icons.error_outline,
-                    size: 64,
-                    color: Colors.grey,
-                  ),
+                  const Icon(Icons.error_outline, size: 64, color: Colors.grey),
                   const SizedBox(height: 16),
                   Text(
                     'Channel not found',
@@ -169,10 +164,9 @@ class _ChannelViewState extends ConsumerState<ChannelView> {
                   Text(
                     'This channel could not be found.',
                     style: TextStyle(
-                      color: Theme.of(context)
-                          .colorScheme
-                          .onSurface
-                          .withOpacity(0.6),
+                      color: Theme.of(
+                        context,
+                      ).colorScheme.onSurface.withOpacity(0.6),
                       fontSize: 14,
                     ),
                   ),
@@ -290,10 +284,16 @@ class _ChannelViewState extends ConsumerState<ChannelView> {
             ),
             // Messages Area
             Expanded(
-              child: MessageList(channelId: widget.channelId),
+              child: MessageList(
+                channelId: widget.channelId,
+                scrollToMessageId: scrollToMessageId,
+              ),
             ),
             // Message Composer
-            MessageComposer(channelId: widget.channelId),
+            MessageComposer(
+              channelId: widget.channelId,
+              guildId: widget.guildId,
+            ),
           ],
         ),
       ),

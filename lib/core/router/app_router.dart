@@ -10,6 +10,7 @@ import '../../features/guild/main_layout.dart';
 import '../../features/guild/channel_view.dart';
 import '../../features/friends/friends_layout.dart';
 import '../../features/friends/dm_view.dart';
+import '../../features/mentions/mentions_panel.dart';
 
 /// Application router configuration
 class AppRouter {
@@ -147,6 +148,11 @@ class AppRouter {
               child: ChannelView(guildId: guildId, channelId: channelId),
             );
           },
+        ),
+        GoRoute(
+          path: '/mentions',
+          builder: (context, state) =>
+              const ProtectedRoute(child: MentionsPanel()),
         ),
       ],
     );

@@ -167,23 +167,41 @@
 
 ## 🏗️ FAZ 5: PRESENCE & MEMBER LIST
 
+**Durum**: ✅ TAMAMLANDI (2025-01-XX)
+
 **Süre**: ~1 hafta
 **Backend Bağımlılığı**: ✅ FAZ 3 tamamlandı (PresenceHub hazır)
 **Frontend Referans**: `MemberList.tsx`, `PresenceHub` events
 
+**Not**:
+
+- PresenceProvider, PresenceHub event listeners, MemberList, StatusUpdateModal tamamlandı
+- Tüm user status'ları destekleniyor: Online, Idle, DND, Invisible, Offline
+- StatusUpdateModal ile kullanıcılar status değiştirebiliyor (Offline hariç - Invisible zaten offline gibi görünüyor)
+- MemberList'te kullanıcılar status'lere göre gruplandırılıyor (Online, Idle, DND tek "ONLINE" kategorisinde, Offline ayrı)
+- Status indicator'lar doğru renklerde gösteriliyor (yeşil=online, turuncu=idle, kırmızı=dnd, gri=offline/invisible)
+- GuildSidebar'a kullanıcı profil butonu eklendi (avatar'a tıklayınca status değiştirme modal'ı açılıyor)
+- PresenceHub event handler'ları backend formatına göre düzeltildi (UserOnline, UserOffline, UserStatusChanged)
+
 ### Görevler
 
-- [ ] PresenceHub event listeners (UserOnline, UserOffline, UserStatusChanged)
-- [ ] MemberList widget (guild members, online/offline status)
-- [ ] User status display (Online, Idle, DND, Invisible, Offline)
-- [ ] Read/unread indicators (badge count)
-- [ ] Status update UI (quick status change)
+- [x] PresenceProvider oluştur (PresenceState, PresenceNotifier, state management)
+- [x] PresenceHub event listeners (UserOnline, UserOffline, UserStatusChanged)
+- [x] MemberList widget (guild members, online/offline/idle/dnd status)
+- [x] UserStatusIndicator widget (renkli badge: green=online, yellow=idle, red=dnd, gray=offline/invisible)
+- [x] User status display (Online, Idle, DND, Invisible, Offline)
+- [x] StatusUpdateModal (quick status change UI, Offline hariç tüm status'lar destekleniyor)
+- [x] PresenceHub başlatma ve listener registration (app startup'ta)
+- [x] GuildSidebar'a kullanıcı profil butonu (status değiştirme için)
 
 ### Deliverables
 
 ✅ Online kullanıcılar görünüyor
-✅ User status güncelleniyor
-✅ Read/unread indicators çalışıyor
+✅ Idle, DND, Invisible status'ları destekleniyor
+✅ User status güncelleniyor (StatusUpdateModal ile)
+✅ MemberList'te kullanıcılar status'lere göre gruplandırılıyor (Online/Idle/DND tek kategoride)
+✅ Status indicator'lar doğru renklerde gösteriliyor
+✅ GuildSidebar'da kullanıcı profil butonu çalışıyor
 
 ---
 
@@ -397,7 +415,7 @@
 1. **FAZ 1-2**: Temel yapı + Auth (Backend hazır ✅) - ✅ TAMAMLANDI
 2. **FAZ 3**: Guild/Channel UI (Backend hazır ✅) - ✅ TAMAMLANDI
 3. **FAZ 4**: Messaging + SignalR (Backend hazır ✅) - ✅ TAMAMLANDI
-4. **FAZ 5**: Presence (Backend hazır ✅)
+4. **FAZ 5**: Presence (Backend hazır ✅) - ✅ TAMAMLANDI
 5. **FAZ 5.5**: Mentions & Notifications (Backend hazır ✅) - ✅ TAMAMLANDI
 6. **FAZ 6-7**: Voice channels + WebRTC (Backend FAZ 8'de yapılacak, iOS önce başlayabilir)
 7. **FAZ 8**: File upload (Backend FAZ 7'de yapılacak, iOS önce başlayabilir)

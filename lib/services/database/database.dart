@@ -1,23 +1,38 @@
+import 'dart:async';
 import 'package:hive_flutter/hive_flutter.dart';
 
 /// Database service using Hive
 class DatabaseService {
   static bool _initialized = false;
 
-  /// Initialize Hive database
+  /// Initialize Hive database with timeout
   static Future<void> init() async {
     if (_initialized) {
       return;
     }
 
-    // Initialize Hive for Flutter
-    await Hive.initFlutter();
+    try {
+      // Add timeout to prevent hanging
+      await Hive.initFlutter().timeout(
+        const Duration(seconds: 10),
+        onTimeout: () {
+          throw TimeoutException('Hive.initFlutter() timed out');
+        },
+      );
 
-    // Optional: Set a custom directory
-    // final dir = await getApplicationDocumentsDirectory();
-    // Hive.init(dir.path);
+      // Open box directly (avoid recursive call)
+      await Hive.openBox('messages_cache').timeout(
+        const Duration(seconds: 10),
+        onTimeout: () {
+          throw TimeoutException('Hive.openBox() timed out');
+        },
+      );
 
-    _initialized = true;
+      _initialized = true;
+    } catch (e) {
+      _initialized = false;
+      rethrow;
+    }
   }
 
   /// Open a Hive box (creates if doesn't exist)
@@ -25,13 +40,25 @@ class DatabaseService {
     if (!_initialized) {
       await init();
     }
-    return await Hive.openBox(name);
+    try {
+      final box = await Hive.openBox(name).timeout(
+        const Duration(seconds: 10),
+        onTimeout: () {
+          throw TimeoutException('openBox($name) timed out');
+        },
+      );
+      return box;
+    } catch (e) {
+      rethrow;
+    }
   }
 
   /// Get an existing box (throws if doesn't exist)
   static Box getBox(String name) {
     if (!_initialized) {
-      throw Exception('Database not initialized. Call DatabaseService.init() first.');
+      throw Exception(
+        'Database not initialized. Call DatabaseService.init() first.',
+      );
     }
     return Hive.box(name);
   }
@@ -54,4 +81,3 @@ class DatabaseService {
     _initialized = false;
   }
 }
-

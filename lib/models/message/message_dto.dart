@@ -13,6 +13,7 @@ class MessageDto {
   final List<MessageEmbedDto>? embeds;
   final String? replyToMessageId;
   final MessageDto? replyToMessage;
+  final bool isPending; // Frontend-only: true if message is pending (not yet sent to server)
 
   MessageDto({
     required this.id,
@@ -26,6 +27,7 @@ class MessageDto {
     this.embeds,
     this.replyToMessageId,
     this.replyToMessage,
+    this.isPending = false,
   });
 
   factory MessageDto.fromJson(Map<String, dynamic> json) {
@@ -78,7 +80,39 @@ class MessageDto {
       if (embeds != null) 'embeds': embeds!.map((e) => e.toJson()).toList(),
       if (replyToMessageId != null) 'replyToMessageId': replyToMessageId,
       if (replyToMessage != null) 'replyToMessage': replyToMessage!.toJson(),
+      // Note: isPending is not included in toJson as it's frontend-only
     };
+  }
+
+  /// Create a copy of this message with updated fields
+  MessageDto copyWith({
+    String? id,
+    String? channelId,
+    String? userId,
+    String? content,
+    DateTime? createdAt,
+    DateTime? editedAt,
+    UserDto? user,
+    List<MessageAttachmentDto>? attachments,
+    List<MessageEmbedDto>? embeds,
+    String? replyToMessageId,
+    MessageDto? replyToMessage,
+    bool? isPending,
+  }) {
+    return MessageDto(
+      id: id ?? this.id,
+      channelId: channelId ?? this.channelId,
+      userId: userId ?? this.userId,
+      content: content ?? this.content,
+      createdAt: createdAt ?? this.createdAt,
+      editedAt: editedAt ?? this.editedAt,
+      user: user ?? this.user,
+      attachments: attachments ?? this.attachments,
+      embeds: embeds ?? this.embeds,
+      replyToMessageId: replyToMessageId ?? this.replyToMessageId,
+      replyToMessage: replyToMessage ?? this.replyToMessage,
+      isPending: isPending ?? this.isPending,
+    );
   }
 }
 

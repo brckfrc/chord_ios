@@ -54,110 +54,139 @@ class MessageItem extends StatelessWidget {
   Widget build(BuildContext context) {
     final user = message.user;
     final displayName = user?.displayName ?? user?.username ?? 'Unknown';
+    final isPending = message.isPending;
 
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 2),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Avatar (hidden if grouped)
-          if (!isGrouped) ...[
-            CircleAvatar(
-              radius: 20,
-              backgroundColor: Theme.of(context).colorScheme.primaryContainer,
-              backgroundImage: user?.avatarUrl != null
-                  ? NetworkImage(user!.avatarUrl!)
-                  : null,
-              child: user?.avatarUrl == null
-                  ? Text(
-                      displayName.isNotEmpty
-                          ? displayName[0].toUpperCase()
-                          : '?',
-                      style: TextStyle(
-                        color: Theme.of(context).colorScheme.onPrimaryContainer,
-                        fontSize: 16,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    )
-                  : null,
-            ),
-            const SizedBox(width: 12),
-          ] else
-            const SizedBox(width: 52), // Spacer for alignment
-          // Message content
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // Username and timestamp (hidden if grouped)
-                if (!isGrouped) ...[
-                  Row(
-                    children: [
-                      Text(
-                        displayName,
+    return Opacity(
+      opacity: isPending ? 0.6 : 1.0, // Pending mesajlar yarı saydam
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 2),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Avatar (hidden if grouped)
+            if (!isGrouped) ...[
+              CircleAvatar(
+                radius: 20,
+                backgroundColor: Theme.of(context).colorScheme.primaryContainer,
+                backgroundImage: user?.avatarUrl != null
+                    ? NetworkImage(user!.avatarUrl!)
+                    : null,
+                child: user?.avatarUrl == null
+                    ? Text(
+                        displayName.isNotEmpty
+                            ? displayName[0].toUpperCase()
+                            : '?',
                         style: TextStyle(
+                          color:
+                              Theme.of(context).colorScheme.onPrimaryContainer,
                           fontSize: 16,
                           fontWeight: FontWeight.w600,
-                          color: Theme.of(context).colorScheme.onSurface,
                         ),
-                      ),
-                      const SizedBox(width: 8),
-                      Text(
-                        _formatTime(message.createdAt),
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: Theme.of(context)
-                              .colorScheme
-                              .onSurface
-                              .withOpacity(0.5),
-                        ),
-                      ),
-                      if (message.editedAt != null) ...[
-                        const SizedBox(width: 4),
+                      )
+                    : null,
+              ),
+              const SizedBox(width: 12),
+            ] else
+              const SizedBox(width: 52), // Spacer for alignment
+            // Message content
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Username and timestamp (hidden if grouped)
+                  if (!isGrouped) ...[
+                    Row(
+                      children: [
                         Text(
-                          '(edited)',
+                          displayName,
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w600,
+                            color: Theme.of(context).colorScheme.onSurface,
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          _formatTime(message.createdAt),
                           style: TextStyle(
                             fontSize: 12,
-                            fontStyle: FontStyle.italic,
                             color: Theme.of(context)
                                 .colorScheme
                                 .onSurface
                                 .withOpacity(0.5),
                           ),
                         ),
+                        if (message.editedAt != null) ...[
+                          const SizedBox(width: 4),
+                          Text(
+                            '(edited)',
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontStyle: FontStyle.italic,
+                              color: Theme.of(context)
+                                  .colorScheme
+                                  .onSurface
+                                  .withOpacity(0.5),
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                    const SizedBox(height: 4),
+                  ],
+                  // Message content with pending indicator
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(
+                        child: Text(
+                          message.content,
+                          style: TextStyle(
+                            fontSize: 16,
+                            color: Theme.of(context).colorScheme.onSurface,
+                            height: 1.375,
+                          ),
+                        ),
+                      ),
+                      // Pending indicator
+                      if (isPending) ...[
+                        const SizedBox(width: 8),
+                        SizedBox(
+                          width: 12,
+                          height: 12,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            valueColor: AlwaysStoppedAnimation<Color>(
+                              Theme.of(context)
+                                  .colorScheme
+                                  .onSurface
+                                  .withOpacity(0.5),
+                            ),
+                          ),
+                        ),
                       ],
                     ],
                   ),
-                  const SizedBox(height: 4),
+                  // Attachments (if any)
+                  if (message.attachments != null &&
+                      message.attachments!.isNotEmpty) ...[
+                    const SizedBox(height: 8),
+                    ...message.attachments!.map(
+                      (attachment) => _buildAttachment(context, attachment),
+                    ),
+                  ],
+                  // Embeds (if any)
+                  if (message.embeds != null && message.embeds!.isNotEmpty) ...[
+                    const SizedBox(height: 8),
+                    ...message.embeds!.map(
+                      (embed) => _buildEmbed(context, embed),
+                    ),
+                  ],
                 ],
-                // Message content
-                Text(
-                  message.content,
-                  style: TextStyle(
-                    fontSize: 16,
-                    color: Theme.of(context).colorScheme.onSurface,
-                    height: 1.375,
-                  ),
-                ),
-                // Attachments (if any)
-                if (message.attachments != null &&
-                    message.attachments!.isNotEmpty) ...[
-                  const SizedBox(height: 8),
-                  ...message.attachments!.map(
-                    (attachment) => _buildAttachment(context, attachment),
-                  ),
-                ],
-                // Embeds (if any)
-                if (message.embeds != null && message.embeds!.isNotEmpty) ...[
-                  const SizedBox(height: 8),
-                  ...message.embeds!.map(
-                    (embed) => _buildEmbed(context, embed),
-                  ),
-                ],
-              ],
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

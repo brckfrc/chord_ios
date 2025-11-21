@@ -29,14 +29,14 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
       AuthState authState;
       int attempts = 0;
       const maxAttempts = 30; // Max 3 seconds wait (30 * 100ms)
-      
+
       do {
         authState = ref.read(authProvider);
         if (!authState.isLoading) break;
         await Future.delayed(const Duration(milliseconds: 100));
         attempts++;
       } while (attempts < maxAttempts && mounted);
-      
+
       // If already authenticated, go to home
       if (authState.isAuthenticated && authState.user != null) {
         if (mounted) {
@@ -55,12 +55,12 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
             context.go('/me');
             return;
           }
-        } catch (_) {
+        } catch (e) {
           // Ignore errors
         }
       }
-    } catch (_) {
-      // Ignore errors, will redirect to login
+    } catch (e) {
+      // Will redirect to login
     }
 
     // Redirect to login if not authenticated
@@ -80,10 +80,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
           gradient: LinearGradient(
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
-            colors: [
-              AppTheme.discordDarkest,
-              AppTheme.discordDarker,
-            ],
+            colors: [AppTheme.discordDarkest, AppTheme.discordDarker],
           ),
         ),
         child: SafeArea(
@@ -129,10 +126,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
                   const SizedBox(height: 48),
                   Text(
                     'Discord-like chat application',
-                    style: TextStyle(
-                      fontSize: 16,
-                      color: AppTheme.textMuted,
-                    ),
+                    style: TextStyle(fontSize: 16, color: AppTheme.textMuted),
                     textAlign: TextAlign.center,
                   ),
                   const SizedBox(height: 64),
@@ -167,4 +161,3 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
     );
   }
 }
-

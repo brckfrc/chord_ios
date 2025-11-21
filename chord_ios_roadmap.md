@@ -121,11 +121,12 @@
 
 ## 🏗️ FAZ 4: MESSAGING UI & SIGNALR
 
-**Durum**: 🟡 KISMEN TAMAMLANDI (2025-01-XX)
+**Durum**: ✅ TAMAMLANDI (2025-01-XX)
 **Not**:
 
-- Temel messaging sistemi hazır. Offline mode ve cache sync logic henüz eklenmedi.
-- Channel type 2 (announcement) backend'de enum'a eklendikten sonra frontend'de de düzeltilecek (şu an database'de mevcut ama enum'da tanımlı değil).
+- Temel messaging sistemi hazır. Offline mode ve cache sync logic eklendi.
+- Channel type 2 (announcement) enum'u hem backend'de hem frontend'de eklendi ve tamamlandı.
+- Ghost message (pending message) özelliği eklendi: Mesaj gönderilirken hemen gösteriliyor (optimistic update), yarı saydam görünüm ve loading indicator ile. SignalR'dan gerçek mesaj geldiğinde pending mesaj gerçek mesajla değiştiriliyor.
 
 **Süre**: ~1.5 hafta
 **Backend Bağımlılığı**: ✅ FAZ 3 tamamlandı (Message endpoints + SignalR hazır)
@@ -144,9 +145,12 @@
 - [x] JoinChannel/LeaveChannel invoke (route değişiminde)
 - [x] Typing indicator UI
 - [x] Message grouping logic (same user consecutive messages)
-- [ ] Channel type 2 (announcement) enum düzeltmesi (backend enum'a eklendikten sonra frontend'de de güncellenecek)
-- [ ] Offline mode / cache stratejisi (mesajları local DB'ye kaydet, offline'da göster)
-- [ ] Cache sync logic (online olduğunda sync, conflict resolution)
+- [x] Channel type 2 (announcement) enum düzeltmesi (backend ve frontend'de tamamlandı)
+- [x] Offline mode / cache stratejisi (mesajları local DB'ye kaydet, offline'da göster)
+- [x] Cache sync logic (online olduğunda sync, conflict resolution)
+- [x] Connectivity service (network durumu kontrolü)
+- [x] Pending messages queue (offline'da gönderilecek mesajlar)
+- [x] Ghost message (pending message) özelliği (optimistic update, yarı saydam görünüm, loading indicator)
 
 ### Deliverables
 
@@ -154,7 +158,10 @@
 ✅ Gerçek zamanlı mesaj gönderme/alma çalışıyor
 ✅ Edit/delete çalışıyor (SignalR instant updates)
 ✅ Typing indicator görünüyor
-⏳ Offline mode çalışıyor (mesajlar cache'leniyor, offline'da görüntüleniyor) - Henüz eklenmedi
+✅ Offline mode çalışıyor (mesajlar cache'leniyor, offline'da görüntüleniyor)
+✅ Cache sync logic çalışıyor (online olduğunda otomatik sync)
+✅ Pending messages queue çalışıyor (offline'da gönderilen mesajlar online olduğunda gönderiliyor)
+✅ Ghost message (pending message) çalışıyor (Discord benzeri, mesaj gönderilirken hemen görünüyor)
 
 ---
 

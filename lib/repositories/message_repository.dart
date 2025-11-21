@@ -3,21 +3,43 @@ import 'dart:convert';
 import '../models/message/message_dto.dart';
 import '../models/message/create_message_dto.dart';
 import '../services/api/api_client.dart';
+import '../services/database/message_cache_service.dart';
+import '../services/network/connectivity_service.dart';
 
 /// Message repository for message operations
 class MessageRepository {
   final ApiClient _apiClient;
+  final ConnectivityService? _connectivityService;
 
-  MessageRepository({ApiClient? apiClient})
-    : _apiClient = apiClient ?? ApiClient();
+  MessageRepository({
+    ApiClient? apiClient,
+    ConnectivityService? connectivityService,
+  }) : _apiClient = apiClient ?? ApiClient(),
+       _connectivityService = connectivityService;
 
   /// Get messages for a channel with pagination
+  /// Returns cached messages if offline, otherwise fetches from API
   Future<List<MessageDto>> fetchMessages(
     String channelId, {
     int? limit = 50,
     String? beforeMessageId,
     String? afterMessageId,
+    bool forceRefresh = false,
   }) async {
+    // Check connectivity
+    final isOnline = _connectivityService != null
+        ? await _connectivityService.checkConnectivity() ==
+              NetworkStatus.connected
+        : true;
+
+    // If offline and not forcing refresh, return cached messages
+    if (!isOnline && !forceRefresh) {
+      final cachedMessages = MessageCacheService.getCachedMessages(channelId);
+      if (cachedMessages.isNotEmpty) {
+        return cachedMessages;
+      }
+    }
+
     try {
       final queryParams = <String, dynamic>{
         if (limit != null) 'limit': limit,
@@ -29,19 +51,6 @@ class MessageRepository {
         '/channels/$channelId/messages',
         queryParameters: queryParams,
       );
-
-      // Debug: Response'u logla
-      print('DEBUG: Response type: ${response.data.runtimeType}');
-      print('DEBUG: Response data: ${response.data}');
-      if (response.data is Map) {
-        print('DEBUG: Response keys: ${(response.data as Map).keys.toList()}');
-        if ((response.data as Map).containsKey('messages')) {
-          print(
-            'DEBUG: messages type: ${(response.data as Map)['messages'].runtimeType}',
-          );
-          print('DEBUG: messages value: ${(response.data as Map)['messages']}');
-        }
-      }
 
       // Handle different response formats
       // Backend returns: { "messages": [...], "totalCount": 10, ... }
@@ -143,23 +152,35 @@ class MessageRepository {
         );
       }
 
-      return data
+      final messages = data
           .map((json) => MessageDto.fromJson(json as Map<String, dynamic>))
           .toList();
+
+      // Cache messages if online
+      if (isOnline) {
+        await MessageCacheService.saveMessagesForChannel(channelId, messages);
+      }
+
+      return messages;
     } on DioException catch (e) {
+      // If offline or network error, try to return cached messages
+      if (!isOnline || e.type == DioExceptionType.connectionError) {
+        final cachedMessages = MessageCacheService.getCachedMessages(channelId);
+        if (cachedMessages.isNotEmpty) {
+          return cachedMessages;
+        }
+      }
       throw Exception(
         e.response?.data['message'] ?? 'Failed to fetch messages',
       );
     } catch (e) {
-      // Daha detaylı hata mesajı
-      final errorMessage = 'Failed to fetch messages: ${e.toString()}';
-      if (e is TypeError) {
-        print('DEBUG: TypeError details: ${e.toString()}');
-        print('DEBUG: Stack trace: ${StackTrace.current}');
+      // If any error, try to return cached messages
+      final cachedMessages = MessageCacheService.getCachedMessages(channelId);
+      if (cachedMessages.isNotEmpty) {
+        return cachedMessages;
       }
-      print('DEBUG: Exception type: ${e.runtimeType}');
-      print('DEBUG: Exception message: ${e.toString()}');
-      throw Exception(errorMessage);
+
+      throw Exception('Failed to fetch messages: ${e.toString()}');
     }
   }
 
@@ -181,17 +202,52 @@ class MessageRepository {
   }
 
   /// Create a new message
-  Future<MessageDto> createMessage(
+  /// If offline, adds to pending queue
+  Future<MessageDto?> createMessage(
     String channelId,
     CreateMessageDto dto,
   ) async {
+    // Check connectivity
+    final isOnline = _connectivityService != null
+        ? await _connectivityService.checkConnectivity() ==
+              NetworkStatus.connected
+        : true;
+
+    // If offline, add to pending queue
+    if (!isOnline) {
+      await MessageCacheService.addPendingMessage(
+        channelId,
+        dto.content,
+        replyToMessageId: dto.replyToMessageId,
+        attachmentIds: dto.attachmentIds,
+      );
+      return null; // Return null to indicate message is queued
+    }
+
     try {
       final response = await _apiClient.post(
         '/channels/$channelId/messages',
         data: dto.toJson(),
       );
-      return MessageDto.fromJson(response.data as Map<String, dynamic>);
+      final message = MessageDto.fromJson(
+        response.data as Map<String, dynamic>,
+      );
+
+      // Cache the new message
+      await MessageCacheService.saveMessage(message);
+
+      return message;
     } on DioException catch (e) {
+      // If network error, add to pending queue
+      if (e.type == DioExceptionType.connectionError) {
+        await MessageCacheService.addPendingMessage(
+          channelId,
+          dto.content,
+          replyToMessageId: dto.replyToMessageId,
+          attachmentIds: dto.attachmentIds,
+        );
+        return null;
+      }
       throw Exception(
         e.response?.data['message'] ?? 'Failed to create message',
       );
@@ -211,7 +267,14 @@ class MessageRepository {
         '/channels/$channelId/messages/$messageId',
         data: dto.toJson(),
       );
-      return MessageDto.fromJson(response.data as Map<String, dynamic>);
+      final message = MessageDto.fromJson(
+        response.data as Map<String, dynamic>,
+      );
+
+      // Update cache
+      await MessageCacheService.saveMessage(message);
+
+      return message;
     } on DioException catch (e) {
       if (e.response?.statusCode == 404) {
         throw Exception('Message not found');
@@ -228,6 +291,9 @@ class MessageRepository {
   Future<void> deleteMessage(String channelId, String messageId) async {
     try {
       await _apiClient.delete('/channels/$channelId/messages/$messageId');
+
+      // Remove from cache
+      await MessageCacheService.removeMessage(channelId, messageId);
     } on DioException catch (e) {
       if (e.response?.statusCode == 404) {
         throw Exception('Message not found');
@@ -238,5 +304,39 @@ class MessageRepository {
     } catch (e) {
       throw Exception('Failed to delete message: ${e.toString()}');
     }
+  }
+
+  /// Sync pending messages (send queued messages when online)
+  Future<void> syncPendingMessages(String channelId) async {
+    final pendingMessages = MessageCacheService.getPendingMessages(channelId);
+    if (pendingMessages.isEmpty) return;
+
+    final isOnline = _connectivityService != null
+        ? await _connectivityService.checkConnectivity() ==
+              NetworkStatus.connected
+        : true;
+
+    if (!isOnline) {
+      return;
+    }
+
+    // Send pending messages
+    for (final pending in pendingMessages) {
+      try {
+        final dto = CreateMessageDto(
+          content: pending['content'] as String,
+          replyToMessageId: pending['replyToMessageId'] as String?,
+          attachmentIds: pending['attachmentIds'] != null
+              ? List<String>.from(pending['attachmentIds'] as List)
+              : null,
+        );
+        await createMessage(channelId, dto);
+      } catch (e) {
+        // Continue with other messages
+      }
+    }
+
+    // Clear pending messages after successful sync
+    await MessageCacheService.clearPendingMessages(channelId);
   }
 }

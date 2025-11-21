@@ -46,7 +46,6 @@ class ChatHubNotifier extends StateNotifier<ChatHubState> {
       
       // Listen to connection state changes
       connection.onclose((error) {
-        print('DEBUG: SignalR connection closed');
         state = state.copyWith(
           connectionState: HubConnectionState.disconnected,
           isConnected: false,
@@ -55,7 +54,6 @@ class ChatHubNotifier extends StateNotifier<ChatHubState> {
       });
 
       connection.onreconnecting((error) {
-        print('DEBUG: SignalR reconnecting');
         state = state.copyWith(
           connectionState: HubConnectionState.reconnecting,
           isConnected: false,
@@ -64,7 +62,6 @@ class ChatHubNotifier extends StateNotifier<ChatHubState> {
       });
 
       connection.onreconnected((connectionId) {
-        print('DEBUG: SignalR reconnected');
         state = state.copyWith(
           connectionState: HubConnectionState.connected,
           isConnected: true,
@@ -73,7 +70,6 @@ class ChatHubNotifier extends StateNotifier<ChatHubState> {
       });
 
       // Start connection
-      print('DEBUG: Starting SignalR connection...');
       await _service.start();
       
       // Connection kurulduktan sonra state'i güncelle
@@ -83,15 +79,12 @@ class ChatHubNotifier extends StateNotifier<ChatHubState> {
       final currentState = connection.state;
       final isConnected = currentState == HubConnectionState.connected;
       
-      print('DEBUG: SignalR connection state after start: $currentState, isConnected: $isConnected');
-      
       state = state.copyWith(
         connectionState: currentState,
         isConnected: isConnected,
         error: null,
       );
     } catch (e) {
-      print('DEBUG: SignalR initialization error: ${e.toString()}');
       state = state.copyWith(
         error: e.toString(),
         isConnected: false,
@@ -102,7 +95,6 @@ class ChatHubNotifier extends StateNotifier<ChatHubState> {
   /// Start connection
   Future<void> start() async {
     try {
-      print('DEBUG: Starting SignalR connection manually...');
       await _service.start();
       
       // Connection kurulduktan sonra state'i güncelle
@@ -112,7 +104,6 @@ class ChatHubNotifier extends StateNotifier<ChatHubState> {
       if (connection != null) {
         final currentState = connection.state;
         final isConnected = currentState == HubConnectionState.connected;
-        print('DEBUG: SignalR connection state after manual start: $currentState, isConnected: $isConnected');
         
         state = state.copyWith(
           connectionState: currentState,
@@ -121,7 +112,6 @@ class ChatHubNotifier extends StateNotifier<ChatHubState> {
         );
       }
     } catch (e) {
-      print('DEBUG: SignalR start error: ${e.toString()}');
       state = state.copyWith(
         error: e.toString(),
         isConnected: false,
@@ -152,7 +142,6 @@ class ChatHubNotifier extends StateNotifier<ChatHubState> {
       
       // Connection yoksa veya bağlı değilse başlat
       if (connection == null || !_service.isConnected) {
-        print('DEBUG: Connection not ready, starting...');
         await start();
         // start() sonrası connection'ı tekrar al
         connection = _service.connection;
@@ -163,12 +152,9 @@ class ChatHubNotifier extends StateNotifier<ChatHubState> {
         }
       }
       
-      print('DEBUG: Invoking $methodName with args: $args');
       final result = await connection.invoke(methodName, args: args);
-      print('DEBUG: Invoke $methodName successful');
       return result;
     } catch (e) {
-      print('DEBUG: Invoke $methodName failed: ${e.toString()}');
       state = state.copyWith(error: e.toString());
       rethrow;
     }
@@ -179,9 +165,6 @@ class ChatHubNotifier extends StateNotifier<ChatHubState> {
     final connection = _service.connection;
     if (connection != null) {
       connection.on(methodName, callback);
-      print('DEBUG: Registered listener for $methodName');
-    } else {
-      print('DEBUG: Cannot register listener for $methodName - connection is null');
     }
   }
 

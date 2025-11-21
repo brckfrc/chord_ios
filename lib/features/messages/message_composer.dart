@@ -70,23 +70,18 @@ class _MessageComposerState extends ConsumerState<MessageComposer> {
       
       // Connection yoksa başlatmayı dene
       if (!chatHubState.isConnected) {
-        print('DEBUG: SignalR not connected, attempting to start...');
         await chatHub.start();
         // Tekrar kontrol et
         final newState = ref.read(chatHubProvider);
         if (!newState.isConnected) {
-          print('DEBUG: SignalR still not connected after start attempt');
           return;
         }
       }
       
-      print('DEBUG: Sending typing indicator for channel: ${widget.channelId}');
       // Backend'deki method ismi: Typing (SendTyping değil)
       await chatHub.invoke('Typing', args: [widget.channelId]);
-      print('DEBUG: Typing indicator sent successfully');
     } catch (e) {
-      print('DEBUG: Failed to send typing indicator: ${e.toString()}');
-      // Ignore errors but log them
+      // Ignore errors
     }
   }
 
@@ -97,22 +92,17 @@ class _MessageComposerState extends ConsumerState<MessageComposer> {
       
       // Connection yoksa başlatmayı dene
       if (!chatHubState.isConnected) {
-        print('DEBUG: SignalR not connected, attempting to start...');
         await chatHub.start();
         // Tekrar kontrol et
         final newState = ref.read(chatHubProvider);
         if (!newState.isConnected) {
-          print('DEBUG: SignalR still not connected after start attempt');
           return;
         }
       }
       
-      print('DEBUG: Stopping typing indicator for channel: ${widget.channelId}');
       await chatHub.invoke('StopTyping', args: [widget.channelId]);
-      print('DEBUG: Typing indicator stopped successfully');
     } catch (e) {
-      print('DEBUG: Failed to stop typing indicator: ${e.toString()}');
-      // Ignore errors but log them
+      // Ignore errors
     }
   }
 

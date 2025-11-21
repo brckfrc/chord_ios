@@ -53,4 +53,29 @@ class UserDto {
       if (customStatus != null) 'customStatus': customStatus,
     };
   }
+
+  /// Create a copy of this user with updated fields
+  UserDto copyWith({
+    String? id,
+    String? username,
+    String? email,
+    String? displayName,
+    String? avatarUrl,
+    DateTime? createdAt,
+    DateTime? lastSeenAt,
+    UserStatus? status,
+    String? customStatus,
+  }) {
+    return UserDto(
+      id: id ?? this.id,
+      username: username ?? this.username,
+      email: email ?? this.email,
+      displayName: displayName ?? this.displayName,
+      avatarUrl: avatarUrl ?? this.avatarUrl,
+      createdAt: createdAt ?? this.createdAt,
+      lastSeenAt: lastSeenAt ?? this.lastSeenAt,
+      status: status ?? this.status,
+      customStatus: customStatus ?? this.customStatus,
+    );
+  }
 }

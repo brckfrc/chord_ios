@@ -7,6 +7,7 @@ import '../../models/guild/channel_type.dart';
 import '../modals/create_channel_modal.dart';
 import '../messages/message_list.dart';
 import '../messages/message_composer.dart';
+import 'member_list.dart';
 
 /// Channel view showing messages and content
 class ChannelView extends ConsumerStatefulWidget {
@@ -24,6 +25,8 @@ class ChannelView extends ConsumerStatefulWidget {
 }
 
 class _ChannelViewState extends ConsumerState<ChannelView> {
+  final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
+
   @override
   void initState() {
     super.initState();
@@ -225,7 +228,49 @@ class _ChannelViewState extends ConsumerState<ChannelView> {
 
     // Text channel: show messages area
     return Scaffold(
+      key: _scaffoldKey,
       backgroundColor: Theme.of(context).colorScheme.surface,
+      endDrawer: Drawer(
+        width: 280,
+        backgroundColor: Theme.of(context).colorScheme.surface,
+        child: SafeArea(
+          child: Column(
+            children: [
+              // Drawer header
+              Container(
+                height: 56,
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                decoration: BoxDecoration(
+                  border: Border(
+                    bottom: BorderSide(color: Color(0xFF1F2023), width: 1),
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    Text(
+                      'Members',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                        color: Theme.of(context).colorScheme.onSurface,
+                      ),
+                    ),
+                    const Spacer(),
+                    IconButton(
+                      icon: const Icon(Icons.close, size: 20),
+                      onPressed: () => Navigator.of(context).pop(),
+                      padding: EdgeInsets.zero,
+                      constraints: const BoxConstraints(),
+                    ),
+                  ],
+                ),
+              ),
+              // Member list
+              Expanded(child: MemberList(guildId: widget.guildId)),
+            ],
+          ),
+        ),
+      ),
       body: SafeArea(
         child: Column(
           children: [
@@ -257,11 +302,14 @@ class _ChannelViewState extends ConsumerState<ChannelView> {
                   const SizedBox(width: 8),
                   const Icon(Icons.tag, size: 20, color: Colors.grey),
                   const SizedBox(width: 8),
-                  Text(
-                    channel.name,
-                    style: const TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w600,
+                  Expanded(
+                    child: Text(
+                      channel.name,
+                      style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                      ),
+                      overflow: TextOverflow.ellipsis,
                     ),
                   ),
                   if (channel.topic != null && channel.topic!.isNotEmpty) ...[
@@ -279,6 +327,17 @@ class _ChannelViewState extends ConsumerState<ChannelView> {
                       ),
                     ),
                   ],
+                  // Members button
+                  IconButton(
+                    icon: const Icon(Icons.people, size: 20),
+                    color: Theme.of(context).colorScheme.onSurface,
+                    onPressed: () {
+                      _scaffoldKey.currentState?.openEndDrawer();
+                    },
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(),
+                    tooltip: 'Members',
+                  ),
                 ],
               ),
             ),

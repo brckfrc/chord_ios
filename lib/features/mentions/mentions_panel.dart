@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../providers/mention_provider.dart';
 import '../../providers/channel_provider.dart';
+import '../../providers/guild_provider.dart';
 import '../../models/mention/message_mention_dto.dart';
 
 /// Mentions panel widget showing unread/read mentions
@@ -30,11 +31,11 @@ class _MentionsPanelState extends ConsumerState<MentionsPanel> {
     // Navigate to the channel and message
     final message = mention.message;
     final channelId = message.channelId;
-    
+
     // Find guildId from channel provider
     final channelState = ref.read(channelProvider);
     String? guildId;
-    
+
     // Search through all channels to find the one with matching channelId
     for (final guildChannels in channelState.channelsByGuild.values) {
       final channel = guildChannels.firstWhere(
@@ -46,10 +47,12 @@ class _MentionsPanelState extends ConsumerState<MentionsPanel> {
         break;
       }
     }
-    
+
     // If guildId found, navigate to channel with messageId query parameter
     if (guildId != null) {
-      context.go('/guilds/$guildId/channels/$channelId?messageId=${mention.messageId}');
+      context.go(
+        '/guilds/$guildId/channels/$channelId?messageId=${mention.messageId}',
+      );
     } else {
       // Fallback: try to fetch channel info (will be handled later)
       // For now, just show an error or navigate to home
@@ -60,7 +63,7 @@ class _MentionsPanelState extends ConsumerState<MentionsPanel> {
         ),
       );
     }
-    
+
     // TODO: Scroll to specific message (will be implemented in "Click to jump" task)
   }
 
@@ -126,9 +129,7 @@ class _MentionsPanelState extends ConsumerState<MentionsPanel> {
                           ? displayName[0].toUpperCase()
                           : '?',
                       style: TextStyle(
-                        color: Theme.of(context)
-                            .colorScheme
-                            .onPrimaryContainer,
+                        color: Theme.of(context).colorScheme.onPrimaryContainer,
                         fontSize: 16,
                         fontWeight: FontWeight.w600,
                       ),
@@ -156,10 +157,9 @@ class _MentionsPanelState extends ConsumerState<MentionsPanel> {
                         _formatTime(message.createdAt),
                         style: TextStyle(
                           fontSize: 12,
-                          color: Theme.of(context)
-                              .colorScheme
-                              .onSurface
-                              .withOpacity(0.5),
+                          color: Theme.of(
+                            context,
+                          ).colorScheme.onSurface.withOpacity(0.5),
                         ),
                       ),
                       if (isUnread) ...[
@@ -193,10 +193,9 @@ class _MentionsPanelState extends ConsumerState<MentionsPanel> {
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(
                       fontSize: 14,
-                      color: Theme.of(context)
-                          .colorScheme
-                          .onSurface
-                          .withOpacity(0.8),
+                      color: Theme.of(
+                        context,
+                      ).colorScheme.onSurface.withOpacity(0.8),
                       height: 1.4,
                     ),
                   ),
@@ -217,6 +216,30 @@ class _MentionsPanelState extends ConsumerState<MentionsPanel> {
 
     return Scaffold(
       appBar: AppBar(
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back, size: 20),
+          color: Theme.of(context).colorScheme.onSurface,
+          onPressed: () {
+            // Navigate back if possible, otherwise go to guild or home
+            if (context.canPop()) {
+              context.pop();
+            } else {
+              // If there's nothing to pop, try to go to current guild
+              final guildState = ref.read(guildProvider);
+              final selectedGuildId = guildState.selectedGuildId;
+
+              if (selectedGuildId != null) {
+                // Go back to guild view (MainLayout with ChannelSidebar)
+                context.go('/guilds/$selectedGuildId');
+              } else {
+                // Fallback to home (friends layout)
+                context.go('/me');
+              }
+            }
+          },
+          padding: EdgeInsets.zero,
+          constraints: const BoxConstraints(),
+        ),
         title: const Text('Mentions'),
         actions: [
           if (mentionState.unreadCount > 0)
@@ -248,119 +271,116 @@ class _MentionsPanelState extends ConsumerState<MentionsPanel> {
       body: mentionState.isLoading
           ? const Center(child: CircularProgressIndicator())
           : mentionState.error != null
-              ? Center(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Text(
-                        'Error: ${mentionState.error}',
+          ? Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Text(
+                    'Error: ${mentionState.error}',
+                    style: TextStyle(
+                      color: Theme.of(context).colorScheme.error,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  ElevatedButton(
+                    onPressed: () {
+                      ref.read(mentionProvider.notifier).fetchMentions();
+                    },
+                    child: const Text('Retry'),
+                  ),
+                ],
+              ),
+            )
+          : unreadMentions.isEmpty && readMentions.isEmpty
+          ? Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(
+                    Icons.alternate_email,
+                    size: 64,
+                    color: Theme.of(
+                      context,
+                    ).colorScheme.onSurface.withOpacity(0.3),
+                  ),
+                  const SizedBox(height: 16),
+                  Text(
+                    'No mentions yet',
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w600,
+                      color: Theme.of(
+                        context,
+                      ).colorScheme.onSurface.withOpacity(0.6),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'When someone mentions you, it will appear here',
+                    style: TextStyle(
+                      fontSize: 14,
+                      color: Theme.of(
+                        context,
+                      ).colorScheme.onSurface.withOpacity(0.5),
+                    ),
+                  ),
+                ],
+              ),
+            )
+          : RefreshIndicator(
+              onRefresh: () async {
+                await ref.read(mentionProvider.notifier).fetchMentions();
+              },
+              child: ListView(
+                children: [
+                  // Unread mentions section
+                  if (unreadMentions.isNotEmpty) ...[
+                    Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 12,
+                      ),
+                      child: Text(
+                        'UNREAD',
                         style: TextStyle(
-                          color: Theme.of(context).colorScheme.error,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700,
+                          color: Theme.of(context).colorScheme.primary,
+                          letterSpacing: 1.2,
                         ),
                       ),
-                      const SizedBox(height: 16),
-                      ElevatedButton(
-                        onPressed: () {
-                          ref.read(mentionProvider.notifier).fetchMentions();
-                        },
-                        child: const Text('Retry'),
+                    ),
+                    ...unreadMentions.map(
+                      (mention) => _buildMentionItem(mention),
+                    ),
+                    const Divider(height: 32),
+                  ],
+                  // Read mentions section
+                  if (readMentions.isNotEmpty) ...[
+                    Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 12,
                       ),
-                    ],
-                  ),
-                )
-              : unreadMentions.isEmpty && readMentions.isEmpty
-                  ? Center(
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(
-                            Icons.alternate_email,
-                            size: 64,
-                            color: Theme.of(context)
-                                .colorScheme
-                                .onSurface
-                                .withOpacity(0.3),
-                          ),
-                          const SizedBox(height: 16),
-                          Text(
-                            'No mentions yet',
-                            style: TextStyle(
-                              fontSize: 18,
-                              fontWeight: FontWeight.w600,
-                              color: Theme.of(context)
-                                  .colorScheme
-                                  .onSurface
-                                  .withOpacity(0.6),
-                            ),
-                          ),
-                          const SizedBox(height: 8),
-                          Text(
-                            'When someone mentions you, it will appear here',
-                            style: TextStyle(
-                              fontSize: 14,
-                              color: Theme.of(context)
-                                  .colorScheme
-                                  .onSurface
-                                  .withOpacity(0.5),
-                            ),
-                          ),
-                        ],
-                      ),
-                    )
-                  : RefreshIndicator(
-                      onRefresh: () async {
-                        await ref.read(mentionProvider.notifier).fetchMentions();
-                      },
-                      child: ListView(
-                        children: [
-                          // Unread mentions section
-                          if (unreadMentions.isNotEmpty) ...[
-                            Padding(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 16,
-                                vertical: 12,
-                              ),
-                              child: Text(
-                                'UNREAD',
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w700,
-                                  color: Theme.of(context)
-                                      .colorScheme
-                                      .primary,
-                                  letterSpacing: 1.2,
-                                ),
-                              ),
-                            ),
-                            ...unreadMentions.map((mention) => _buildMentionItem(mention)),
-                            const Divider(height: 32),
-                          ],
-                          // Read mentions section
-                          if (readMentions.isNotEmpty) ...[
-                            Padding(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 16,
-                                vertical: 12,
-                              ),
-                              child: Text(
-                                'OLDER',
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w700,
-                                  color: Theme.of(context)
-                                      .colorScheme
-                                      .onSurface
-                                      .withOpacity(0.5),
-                                  letterSpacing: 1.2,
-                                ),
-                              ),
-                            ),
-                            ...readMentions.map((mention) => _buildMentionItem(mention)),
-                          ],
-                        ],
+                      child: Text(
+                        'OLDER',
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700,
+                          color: Theme.of(
+                            context,
+                          ).colorScheme.onSurface.withOpacity(0.5),
+                          letterSpacing: 1.2,
+                        ),
                       ),
                     ),
+                    ...readMentions.map(
+                      (mention) => _buildMentionItem(mention),
+                    ),
+                  ],
+                ],
+              ),
+            ),
     );
   }
 }
-

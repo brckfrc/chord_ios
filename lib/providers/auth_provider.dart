@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/auth/user_dto.dart';
+import '../models/auth/user_status.dart';
 import '../models/auth/login_dto.dart';
 import '../models/auth/register_dto.dart';
 import '../repositories/auth_repository.dart';
@@ -159,6 +160,15 @@ class AuthNotifier extends StateNotifier<AuthState> {
   /// Clear error
   void clearError() {
     state = state.copyWith(error: null);
+  }
+
+  /// Update user status (for presence updates)
+  void updateUserStatus(UserStatus status) {
+    final currentUser = state.user;
+    if (currentUser != null) {
+      final updatedUser = currentUser.copyWith(status: status);
+      state = state.copyWith(user: updatedUser);
+    }
   }
 }
 

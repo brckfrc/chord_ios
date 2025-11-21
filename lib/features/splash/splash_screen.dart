@@ -3,6 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../core/theme/app_theme.dart';
 import '../../providers/auth_provider.dart';
+import '../../providers/signalr/presence_hub_provider.dart';
+import '../../providers/presence_provider.dart';
 
 /// Splash/Welcome screen with auto-login
 class SplashScreen extends ConsumerStatefulWidget {
@@ -17,6 +19,22 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
   void initState() {
     super.initState();
     _checkAutoLogin();
+  }
+
+  /// Initialize PresenceHub and PresenceProvider
+  Future<void> _initializePresence() async {
+    try {
+      // Start PresenceHub connection
+      final presenceHub = ref.read(presenceHubProvider.notifier);
+      await presenceHub.start();
+
+      // Initialize PresenceProvider (this will register listeners)
+      // PresenceProvider is already watching presenceHubProvider, so it will auto-initialize
+      // But we need to ensure it's created
+      ref.read(presenceProvider);
+    } catch (e) {
+      // Ignore errors - presence is not critical for app startup
+    }
   }
 
   Future<void> _checkAutoLogin() async {
@@ -39,6 +57,9 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
 
       // If already authenticated, go to home
       if (authState.isAuthenticated && authState.user != null) {
+        // Initialize PresenceHub and PresenceProvider
+        _initializePresence();
+
         if (mounted) {
           context.go('/me');
         }
@@ -52,6 +73,9 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
           await ref.read(authProvider.notifier).getCurrentUser();
           final newAuthState = ref.read(authProvider);
           if (newAuthState.isAuthenticated && mounted) {
+            // Initialize PresenceHub and PresenceProvider
+            _initializePresence();
+
             context.go('/me');
             return;
           }

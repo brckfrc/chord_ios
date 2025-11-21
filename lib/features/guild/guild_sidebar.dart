@@ -3,8 +3,12 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../providers/guild_provider.dart';
 import '../../providers/channel_provider.dart';
+import '../../providers/auth_provider.dart';
 import '../../models/guild/guild_dto.dart';
+import '../../models/auth/user_status.dart';
 import '../../features/modals/create_guild_modal.dart';
+import '../../features/presence/status_update_modal.dart';
+import '../../shared/widgets/user_status_indicator.dart';
 
 /// Guild sidebar widget
 class GuildSidebar extends ConsumerStatefulWidget {
@@ -102,6 +106,9 @@ class _GuildSidebarState extends ConsumerState<GuildSidebar> {
                   );
                 },
               ),
+              const SizedBox(height: 8),
+              // User Profile Button (status değiştirme için)
+              const _UserProfileButton(),
               const SizedBox(height: 12),
             ],
           ),
@@ -182,6 +189,113 @@ class _GuildInitial extends StatelessWidget {
         fontSize: 20,
         fontWeight: FontWeight.bold,
       ),
+    );
+  }
+}
+
+class _UserProfileButton extends ConsumerStatefulWidget {
+  const _UserProfileButton();
+
+  @override
+  ConsumerState<_UserProfileButton> createState() => _UserProfileButtonState();
+}
+
+class _UserProfileButtonState extends ConsumerState<_UserProfileButton> {
+  @override
+  Widget build(BuildContext context) {
+    final authState = ref.watch(authProvider);
+    final currentUser = authState.user;
+    final currentStatus = currentUser?.status ?? UserStatus.offline;
+
+    return GestureDetector(
+      onTap: () {
+        showDialog(
+          context: context,
+          barrierColor: Colors.black.withOpacity(0.7),
+          builder: (context) => StatusUpdateModal(
+            open: true,
+            onOpenChange: (open) {
+              if (!open) {
+                Navigator.of(context).pop();
+              }
+            },
+          ),
+        );
+      },
+      child: Container(
+            width: 48,
+            height: 48,
+            margin: const EdgeInsets.symmetric(horizontal: 8),
+            decoration: BoxDecoration(
+              color: const Color(0xFF313338),
+              borderRadius: BorderRadius.circular(24),
+            ),
+            child: Stack(
+              clipBehavior: Clip.none,
+              children: [
+                // Avatar
+                Center(
+                  child: currentUser?.avatarUrl != null
+                      ? ClipRRect(
+                          borderRadius: BorderRadius.circular(24),
+                          child: Image.network(
+                            currentUser!.avatarUrl!,
+                            width: 48,
+                            height: 48,
+                            fit: BoxFit.cover,
+                            errorBuilder: (_, __, ___) {
+                              final displayName = currentUser.displayName;
+                              final username = currentUser.username;
+                              return CircleAvatar(
+                                radius: 24,
+                                backgroundColor: Theme.of(context).colorScheme.primaryContainer,
+                                child: Text(
+                                  displayName != null && displayName.isNotEmpty
+                                      ? displayName[0].toUpperCase()
+                                      : username.isNotEmpty
+                                          ? username[0].toUpperCase()
+                                          : '?',
+                                  style: TextStyle(
+                                    color: Theme.of(context).colorScheme.onPrimaryContainer,
+                                    fontSize: 20,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              );
+                            },
+                          ),
+                        )
+                      : CircleAvatar(
+                          radius: 24,
+                          backgroundColor: Theme.of(context).colorScheme.primaryContainer,
+                          child: Text(
+                            currentUser != null
+                                ? (currentUser.displayName?.isNotEmpty == true
+                                    ? currentUser.displayName![0].toUpperCase()
+                                    : currentUser.username.isNotEmpty
+                                        ? currentUser.username[0].toUpperCase()
+                                        : '?')
+                                : '?',
+                            style: TextStyle(
+                              color: Theme.of(context).colorScheme.onPrimaryContainer,
+                              fontSize: 20,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                ),
+                // Status indicator (bottom right)
+                Positioned(
+                  right: 0,
+                  bottom: 0,
+                  child: UserStatusIndicator(
+                    status: currentStatus,
+                    size: 14,
+                  ),
+                ),
+              ],
+            ),
+          ),
     );
   }
 }

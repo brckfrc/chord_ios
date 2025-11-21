@@ -69,7 +69,7 @@ class DMView extends ConsumerWidget {
               decoration: BoxDecoration(
                 border: Border(
                   bottom: BorderSide(
-                    color: Theme.of(context).dividerColor,
+                    color: Color(0xFF1F2023), // Darker gray separator
                     width: 1,
                   ),
                 ),
@@ -171,7 +171,7 @@ class DMView extends ConsumerWidget {
               decoration: BoxDecoration(
                 border: Border(
                   top: BorderSide(
-                    color: Theme.of(context).dividerColor,
+                    color: Color(0xFF1F2023), // Darker gray separator
                     width: 1,
                   ),
                 ),

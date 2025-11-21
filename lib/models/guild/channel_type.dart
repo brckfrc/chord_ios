@@ -1,7 +1,8 @@
 /// Channel type enum
 enum ChannelType {
   text(0),
-  voice(1);
+  voice(1),
+  announcement(2);
 
   final int value;
   const ChannelType(this.value);
@@ -19,6 +20,8 @@ enum ChannelType {
         return ChannelType.text;
       case 'voice':
         return ChannelType.voice;
+      case 'announcement':
+        return ChannelType.announcement;
       default:
         return ChannelType.text;
     }

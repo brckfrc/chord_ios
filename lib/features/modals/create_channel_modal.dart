@@ -156,6 +156,21 @@ class _CreateChannelModalState extends ConsumerState<CreateChannelModal> {
                   ),
                   Expanded(
                     child: RadioListTile<ChannelType>(
+                      title: const Text('Announcement'),
+                      value: ChannelType.announcement,
+                      groupValue: _selectedType,
+                      onChanged: (value) {
+                        if (value != null) {
+                          setState(() {
+                            _selectedType = value;
+                          });
+                        }
+                      },
+                      contentPadding: EdgeInsets.zero,
+                    ),
+                  ),
+                  Expanded(
+                    child: RadioListTile<ChannelType>(
                       title: const Text('Voice'),
                       value: ChannelType.voice,
                       groupValue: _selectedType,

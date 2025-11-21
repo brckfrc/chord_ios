@@ -242,7 +242,7 @@ class _ChannelViewState extends ConsumerState<ChannelView> {
               decoration: BoxDecoration(
                 border: Border(
                   bottom: BorderSide(
-                    color: Theme.of(context).dividerColor,
+                    color: Color(0xFF1F2023), // Darker gray separator
                     width: 1,
                   ),
                 ),

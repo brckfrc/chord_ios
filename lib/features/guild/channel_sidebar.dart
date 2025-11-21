@@ -21,6 +21,7 @@ class _ChannelSidebarState extends ConsumerState<ChannelSidebar> {
   // Section expanded states
   final Map<String, bool> _sectionExpanded = {
     'TEXT CHANNELS': true,
+    'ANNOUNCEMENTS': true,
     'VOICE CHANNELS': true,
   };
 
@@ -67,6 +68,9 @@ class _ChannelSidebarState extends ConsumerState<ChannelSidebar> {
 
     final textChannels = channels
         .where((c) => c.type == ChannelType.text)
+        .toList();
+    final announcementChannels = channels
+        .where((c) => c.type == ChannelType.announcement)
         .toList();
     final voiceChannels = channels
         .where((c) => c.type == ChannelType.voice)
@@ -156,6 +160,41 @@ class _ChannelSidebarState extends ConsumerState<ChannelSidebar> {
                     : ListView(
                         padding: const EdgeInsets.all(8),
                         children: [
+                          // Announcement Channels Section
+                          _ChannelSection(
+                            title: 'ANNOUNCEMENTS',
+                            channels: announcementChannels,
+                            selectedChannelId: selectedChannelId,
+                            onChannelTap: (channel) {
+                              ref
+                                  .read(channelProvider.notifier)
+                                  .setSelectedChannel(channel.id);
+                              context.go(
+                                '/guilds/$selectedGuildId/channels/${channel.id}',
+                              );
+                            },
+                            onCreateChannel: () {
+                              showDialog(
+                                context: context,
+                                barrierColor: Colors.black.withOpacity(0.7),
+                                builder: (context) => CreateChannelModal(
+                                  open: true,
+                                  onOpenChange: (open) {
+                                    if (!open) {
+                                      Navigator.of(context).pop();
+                                    }
+                                  },
+                                  guildId: selectedGuildId,
+                                  defaultChannelType: ChannelType.announcement,
+                                ),
+                              );
+                            },
+                            icon: Icons.campaign,
+                            isExpanded:
+                                _sectionExpanded['ANNOUNCEMENTS'] ?? true,
+                            onToggle: () => _toggleSection('ANNOUNCEMENTS'),
+                          ),
+                          const SizedBox(height: 16),
                           // Text Channels Section
                           _ChannelSection(
                             title: 'TEXT CHANNELS',
@@ -282,7 +321,9 @@ class _ChannelSection extends StatelessWidget {
                       ? Icons.keyboard_arrow_down
                       : Icons.keyboard_arrow_right,
                   size: 12,
-                  color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6),
+                  color: Theme.of(
+                    context,
+                  ).colorScheme.onSurface.withOpacity(0.6),
                 ),
                 const SizedBox(width: 4),
                 Expanded(
@@ -291,7 +332,9 @@ class _ChannelSection extends StatelessWidget {
                     style: TextStyle(
                       fontSize: 11,
                       fontWeight: FontWeight.w700,
-                      color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6),
+                      color: Theme.of(
+                        context,
+                      ).colorScheme.onSurface.withOpacity(0.6),
                       letterSpacing: 0.5,
                     ),
                   ),
@@ -300,9 +343,14 @@ class _ChannelSection extends StatelessWidget {
                   icon: const Icon(Icons.add, size: 16),
                   onPressed: onCreateChannel,
                   padding: EdgeInsets.zero,
-                  constraints: const BoxConstraints(minWidth: 24, minHeight: 24),
+                  constraints: const BoxConstraints(
+                    minWidth: 24,
+                    minHeight: 24,
+                  ),
                   splashRadius: 16,
-                  color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6),
+                  color: Theme.of(
+                    context,
+                  ).colorScheme.onSurface.withOpacity(0.6),
                 ),
               ],
             ),
@@ -370,7 +418,9 @@ class _ChannelItem extends StatelessWidget {
                   fontWeight: isSelected ? FontWeight.w500 : FontWeight.w400,
                   color: isSelected
                       ? Theme.of(context).colorScheme.onSurface
-                      : Theme.of(context).colorScheme.onSurface.withOpacity(0.7),
+                      : Theme.of(
+                          context,
+                        ).colorScheme.onSurface.withOpacity(0.7),
                 ),
                 overflow: TextOverflow.ellipsis,
               ),

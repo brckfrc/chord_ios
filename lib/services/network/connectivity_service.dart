@@ -57,3 +57,6 @@ final currentNetworkStatusProvider = FutureProvider<NetworkStatus>((ref) {
   return service.checkConnectivity();
 });
 
+
+
+

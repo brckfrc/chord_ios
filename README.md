@@ -1,16 +1,294 @@
-# chord_ios
+# 📱 Chord iOS - Flutter Mobile Client
 
-A new Flutter project.
+Chord iOS is a Flutter-based iOS mobile client for the [Chord Backend API](https://github.com/brckfrc/chord). A Discord-like real-time chat application with iOS-specific features, permission management, lifecycle handling, and notification support.
 
-## Getting Started
+## 🚀 Features
 
-This project is a starting point for a Flutter application.
+- **Real-Time Messaging**: Instant messaging via SignalR WebSockets
+- **Guilds & Channels**: Create and manage Discord-like servers with text and voice channels
+- **Direct Messages**: Private messaging support
+- **Mentions**: @mention system with autocomplete and notifications
+- **User Presence**: Online, Idle, DND, Invisible statuses
+- **Offline Mode**: Message caching, pending queue, and sync logic
+- **Optimistic Updates**: Ghost messages for instant feedback
 
-A few resources to get you started if this is your first Flutter project:
+## 🛠️ Tech Stack
 
-- [Lab: Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Cookbook: Useful Flutter samples](https://docs.flutter.dev/cookbook)
+### Core
 
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+- **Flutter 3.38+** - Cross-platform UI framework
+- **Dart 3.10+** - Programming language
+- **Riverpod 2.5** - State management
+- **GoRouter 13.2** - Declarative routing
+
+### Network & Real-time
+
+- **Dio 5.4** - HTTP client
+- **SignalR Core 1.0** - Real-time WebSocket communication
+
+### Storage & Database
+
+- **flutter_secure_storage 9.0** - Secure token storage (Keychain)
+- **Hive 2.2** - Local database (offline cache)
+
+### Utilities
+
+- **Sentry Flutter 8.0** - Error tracking & crash reporting
+- **connectivity_plus 6.0** - Network connectivity monitoring
+
+## 📋 Prerequisites
+
+### Development
+
+- **Flutter SDK 3.38+** - [Install Flutter](https://docs.flutter.dev/get-started/install)
+- **Xcode 15+** (macOS only) - iOS development
+- **CocoaPods** - iOS dependency manager
+- **Android Studio / VS Code** - IDE (optional)
+
+### Runtime
+
+- **iOS 13.0+** - Minimum iOS version
+- **Backend API** - Chord Backend API must be running
+
+## 🚀 Getting Started
+
+### 1. Clone the Repository
+
+```bash
+git clone https://github.com/brckfrc/chord_ios.git
+cd chord_ios
+```
+
+### 2. Install Dependencies
+
+```bash
+flutter pub get
+```
+
+### 3. Configure Backend API Connection
+
+Edit `lib/core/config/app_config.dart`:
+
+```dart
+class AppConfig {
+  static const String apiBaseUrl = 'http://localhost:5049/api';
+  static const String signalRBaseUrl = 'http://localhost:5049';
+  static const bool isProduction = false;
+}
+```
+
+**Important Notes:**
+
+- `apiBaseUrl` **must include `/api` prefix** (e.g., `http://localhost:5049/api`)
+- `signalRBaseUrl` **must not include trailing slash** (e.g., `http://localhost:5049`)
+
+### 4. Run on iOS Simulator or Device
+
+```bash
+# Run on iOS Simulator
+flutter run -d ios
+
+# List available devices
+flutter devices
+flutter run -d <device-id>
+```
+
+## 📁 Project Structure
+
+```
+lib/
+├── core/                    # Core configuration
+│   ├── config/             # App config (API URLs, environment)
+│   ├── router/             # GoRouter route definitions
+│   └── theme/              # Dark theme, colors
+│
+├── features/               # Screens and UI components
+│   ├── auth/              # Login, register screens
+│   ├── guild/             # Guild management (sidebar, channel view)
+│   ├── friends/           # DM (Direct Messages)
+│   ├── messages/          # Message components (list, item, composer)
+│   ├── mentions/         # Mention system
+│   ├── modals/            # Modal dialogs (create guild, channel, invite)
+│   ├── presence/          # User status (status update modal)
+│   └── splash/            # Splash screen
+│
+├── models/                 # Data models (DTOs)
+│   ├── auth/              # User, Login, Register, Token models
+│   ├── guild/             # Guild, Channel, GuildMember models
+│   ├── message/           # Message, CreateMessage models
+│   ├── dm/                # DM model
+│   └── mention/           # MessageMention model
+│
+├── repositories/          # API calls
+│   ├── auth_repository.dart
+│   ├── guild_repository.dart
+│   ├── channel_repository.dart
+│   ├── message_repository.dart
+│   ├── dm_repository.dart
+│   └── mention_repository.dart
+│
+├── providers/             # State management (Riverpod)
+│   ├── auth_provider.dart
+│   ├── guild_provider.dart
+│   ├── message_provider.dart
+│   ├── presence_provider.dart
+│   └── signalr/           # SignalR hub providers
+│
+├── services/              # Services
+│   ├── api/               # Dio HTTP client
+│   ├── database/          # Hive database, message cache
+│   ├── network/           # Connectivity service
+│   ├── signalr/           # SignalR connection manager
+│   └── storage/           # Secure storage (Keychain)
+│
+├── shared/                # Shared widgets
+│   └── widgets/           # AppButton, AppInput, Loading, Toast, etc.
+│
+└── main.dart              # Application entry point
+```
+
+## 🔧 Development
+
+### Hot Reload
+
+```bash
+# Run in development mode (hot reload enabled)
+flutter run
+
+# Hot reload: Press `r`
+# Hot restart: Press `R`
+# Quit: Press `q`
+```
+
+### Build
+
+```bash
+# iOS Debug build
+flutter build ios --debug
+
+# iOS Release build
+flutter build ios --release
+```
+
+### Code Generation (Hive)
+
+```bash
+# Hive model code generation
+flutter pub run build_runner build
+
+# Watch mode (auto-generate)
+flutter pub run build_runner watch
+```
+
+## 🔐 iOS Configuration
+
+### Info.plist Permissions
+
+Required permissions in `ios/Runner/Info.plist`:
+
+```xml
+<!-- Microphone (for voice channels) -->
+<key>NSMicrophoneUsageDescription</key>
+<string>Microphone access is required for voice channels.</string>
+
+<!-- Camera (for video sharing) -->
+<key>NSCameraUsageDescription</key>
+<string>Camera access is required for video sharing.</string>
+
+<!-- Photo Library (for image/video sharing) -->
+<key>NSPhotoLibraryUsageDescription</key>
+<string>Photo library access is required for sharing images and videos.</string>
+```
+
+### Background Modes (Future: Voice Channels)
+
+In `ios/Runner/Info.plist`:
+
+```xml
+<key>UIBackgroundModes</key>
+<array>
+    <string>audio</string> <!-- For voice channels -->
+</array>
+```
+
+## 📡 Backend Connection
+
+This mobile app works with the [Chord Backend API](https://github.com/brckfrc/chord).
+
+### Backend Requirements
+
+- Backend API must be running (default: `http://localhost:5049`)
+- SignalR hubs must be active (`/hubs/chat`, `/hubs/presence`)
+- CORS settings must be configured for mobile app
+
+### Backend Setup
+
+For backend setup, see the main repository: [Chord Backend README](../chord/backend/README.md)
+
+## 🧪 Testing
+
+```bash
+# Unit tests
+flutter test
+
+# Integration tests (coming soon)
+flutter test integration_test/
+```
+
+## 🔜 Upcoming Features
+
+- **Voice Channels**: WebRTC P2P voice channels (≤5 users)
+- **File Upload**: Image and video sharing
+- **Push Notifications**: APNs/FCM integration
+- **Video Support**: Inline video playback
+- **UX Polish**: Accessibility, error handling, performance optimization
+- **App Store**: Production build, testing, submission
+
+## 🐛 Troubleshooting
+
+### iOS Build Issues
+
+```bash
+# Update CocoaPods
+cd ios
+pod deintegrate
+pod install
+cd ..
+
+# Flutter clean
+flutter clean
+flutter pub get
+```
+
+### SignalR Connection Issues
+
+- Ensure backend API is running
+- `signalRBaseUrl` must not include trailing slash
+- Check CORS settings
+
+### Secure Storage Issues
+
+- Keychain may have issues on iOS Simulator
+- Test on a real device
+
+## 📝 License
+
+This project is open source and available under the MIT License.
+
+## 🤝 Contributing
+
+Contributions are welcome! Please feel free to submit a Pull Request.
+
+1. Fork the project
+2. Create your feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit your changes (`git commit -m 'Add amazing feature'`)
+4. Push to the branch (`git push origin feature/amazing-feature`)
+5. Open a Pull Request
+
+## 📧 Contact
+
+For questions or support, please open an issue on GitHub.
+
+---
+
+**Backend Repository**: [Chord Backend](https://github.com/brckfrc/chord)

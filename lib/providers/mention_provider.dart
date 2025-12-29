@@ -68,10 +68,7 @@ class MentionNotifier extends StateNotifier<MentionState> {
         isLoading: false,
       );
     } catch (e) {
-      state = state.copyWith(
-        isLoading: false,
-        error: e.toString(),
-      );
+      state = state.copyWith(isLoading: false, error: e.toString());
     }
   }
 
@@ -124,10 +121,7 @@ class MentionNotifier extends StateNotifier<MentionState> {
     // Update unread count
     final unreadCount = updatedMentions.where((m) => !m.isRead).length;
 
-    state = state.copyWith(
-      mentions: updatedMentions,
-      unreadCount: unreadCount,
-    );
+    state = state.copyWith(mentions: updatedMentions, unreadCount: unreadCount);
   }
 
   /// Update a mention
@@ -142,10 +136,7 @@ class MentionNotifier extends StateNotifier<MentionState> {
     // Update unread count
     final unreadCount = updatedMentions.where((m) => !m.isRead).length;
 
-    state = state.copyWith(
-      mentions: updatedMentions,
-      unreadCount: unreadCount,
-    );
+    state = state.copyWith(mentions: updatedMentions, unreadCount: unreadCount);
   }
 
   /// Clear error
@@ -155,19 +146,9 @@ class MentionNotifier extends StateNotifier<MentionState> {
 }
 
 /// Mention provider
-final mentionProvider =
-    StateNotifierProvider<MentionNotifier, MentionState>((ref) {
+final mentionProvider = StateNotifierProvider<MentionNotifier, MentionState>((
+  ref,
+) {
   final repository = ref.watch(mentionRepositoryProvider);
   return MentionNotifier(repository);
 });
-
-
-
-
-
-
-
-
-
-
-

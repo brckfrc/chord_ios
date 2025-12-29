@@ -7,7 +7,7 @@ class MentionRepository {
   final ApiClient _apiClient;
 
   MentionRepository({ApiClient? apiClient})
-      : _apiClient = apiClient ?? ApiClient();
+    : _apiClient = apiClient ?? ApiClient();
 
   /// Get all mentions for the current user
   /// [unreadOnly] if true, returns only unread mentions
@@ -26,9 +26,9 @@ class MentionRepository {
 
       final List<dynamic> data = response.data as List<dynamic>;
       return data
-          .map((json) => MessageMentionDto.fromJson(
-                json as Map<String, dynamic>,
-              ))
+          .map(
+            (json) => MessageMentionDto.fromJson(json as Map<String, dynamic>),
+          )
           .toList();
     } on DioException catch (e) {
       throw Exception(
@@ -50,9 +50,7 @@ class MentionRepository {
         e.response?.data['message'] ?? 'Failed to fetch unread mention count',
       );
     } catch (e) {
-      throw Exception(
-        'Failed to fetch unread mention count: ${e.toString()}',
-      );
+      throw Exception('Failed to fetch unread mention count: ${e.toString()}');
     }
   }
 
@@ -68,20 +66,7 @@ class MentionRepository {
         e.response?.data['message'] ?? 'Failed to mark mention as read',
       );
     } catch (e) {
-      throw Exception(
-        'Failed to mark mention as read: ${e.toString()}',
-      );
+      throw Exception('Failed to mark mention as read: ${e.toString()}');
     }
   }
 }
-
-
-
-
-
-
-
-
-
-
-

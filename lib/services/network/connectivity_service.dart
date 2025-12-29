@@ -3,10 +3,7 @@ import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 /// Network connectivity state
-enum NetworkStatus {
-  connected,
-  disconnected,
-}
+enum NetworkStatus { connected, disconnected }
 
 /// Connectivity service for monitoring network status
 class ConnectivityService {
@@ -56,14 +53,3 @@ final currentNetworkStatusProvider = FutureProvider<NetworkStatus>((ref) {
   final service = ref.watch(connectivityServiceProvider);
   return service.checkConnectivity();
 });
-
-
-
-
-
-
-
-
-
-
-

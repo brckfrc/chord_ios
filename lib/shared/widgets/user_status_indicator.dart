@@ -6,11 +6,7 @@ class UserStatusIndicator extends StatelessWidget {
   final UserStatus status;
   final double size; // Badge size (default: 12)
 
-  const UserStatusIndicator({
-    super.key,
-    required this.status,
-    this.size = 12,
-  });
+  const UserStatusIndicator({super.key, required this.status, this.size = 12});
 
   Color _getStatusColor(UserStatus status) {
     switch (status) {
@@ -71,9 +67,7 @@ class AvatarWithStatus extends StatelessWidget {
           backgroundImage: avatarUrl != null ? NetworkImage(avatarUrl!) : null,
           child: avatarUrl == null
               ? Text(
-                  displayName.isNotEmpty
-                      ? displayName[0].toUpperCase()
-                      : '?',
+                  displayName.isNotEmpty ? displayName[0].toUpperCase() : '?',
                   style: TextStyle(
                     color: Theme.of(context).colorScheme.onPrimaryContainer,
                     fontSize: avatarRadius * 0.8,
@@ -86,23 +80,9 @@ class AvatarWithStatus extends StatelessWidget {
         Positioned(
           right: 0,
           bottom: 0,
-          child: UserStatusIndicator(
-            status: status,
-            size: statusSize,
-          ),
+          child: UserStatusIndicator(status: status, size: statusSize),
         ),
       ],
     );
   }
 }
-
-
-
-
-
-
-
-
-
-
-

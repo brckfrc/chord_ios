@@ -1,0 +1,75 @@
+name: Android Build
+
+on:
+  push:
+    branches: [main, master, develop]
+  pull_request:
+    branches: [main, master]
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: "Build environment"
+        required: true
+        default: "production"
+        type: choice
+        options:
+          - production
+          - development
+
+jobs:
+  build-android:
+    name: Build Android APK
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6.0.1
+
+      - name: Setup Java
+        uses: actions/setup-java@v5.1.0
+        with:
+          distribution: "zulu"
+          java-version: "17"
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2.21.0
+        with:
+          flutter-version: "3.24.0"
+          channel: "stable"
+          cache: true
+
+      - name: Install FVM
+        run: |
+          dart pub global activate fvm
+          fvm install
+          fvm use stable
+
+      - name: Get dependencies
+        run: |
+          fvm flutter pub get
+
+      - name: Build Android APK
+        run: |
+          fvm flutter build apk \
+            --dart-define=ENV=${{ github.event.inputs.environment || 'production' }} \
+            --release
+
+      - name: Build Android App Bundle (AAB)
+        run: |
+          fvm flutter build appbundle \
+            --dart-define=ENV=${{ github.event.inputs.environment || 'production' }} \
+            --release
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v6.0.0
+        with:
+          name: android-apk
+          path: build/app/outputs/flutter-apk/app-release.apk
+          retention-days: 30
+
+      - name: Upload AAB
+        uses: actions/upload-artifact@v6.0.0
+        with:
+          name: android-aab
+          path: build/app/outputs/bundle/release/app-release.aab
+          retention-days: 30

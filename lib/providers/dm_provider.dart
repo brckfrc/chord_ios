@@ -90,6 +90,32 @@ class DMNotifier extends StateNotifier<DMState> {
       return null;
     }
   }
+
+  /// Mark DM as read
+  Future<void> markDMAsRead(String dmId) async {
+    try {
+      await _repository.markDMAsRead(dmId);
+      
+      // Update unreadCount in state
+      final updatedDms = List<DMDto>.from(state.dms);
+      final dmIndex = updatedDms.indexWhere((dm) => dm.id == dmId);
+      if (dmIndex >= 0) {
+        final updatedDM = DMDto(
+          id: updatedDms[dmIndex].id,
+          userId: updatedDms[dmIndex].userId,
+          otherUserId: updatedDms[dmIndex].otherUserId,
+          otherUser: updatedDms[dmIndex].otherUser,
+          lastMessage: updatedDms[dmIndex].lastMessage,
+          unreadCount: 0, // Reset unread count
+          createdAt: updatedDms[dmIndex].createdAt,
+        );
+        updatedDms[dmIndex] = updatedDM;
+        state = state.copyWith(dms: updatedDms);
+      }
+    } catch (e) {
+      state = state.copyWith(error: e.toString());
+    }
+  }
 }
 
 /// DM repository provider

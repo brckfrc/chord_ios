@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'user_status.dart';
 
 /// User DTO
@@ -25,19 +26,38 @@ class UserDto {
   });
 
   factory UserDto.fromJson(Map<String, dynamic> json) {
-    return UserDto(
-      id: json['id']?.toString() ?? '',
-      username: json['username'] as String,
-      email: json['email'] as String,
-      displayName: json['displayName'] as String?,
-      avatarUrl: json['avatarUrl'] as String?,
-      createdAt: DateTime.parse(json['createdAt'].toString()),
-      lastSeenAt: json['lastSeenAt'] != null
-          ? DateTime.parse(json['lastSeenAt'].toString())
-          : null,
-      status: UserStatus.fromDynamic(json['status']),
-      customStatus: json['customStatus'] as String?,
-    );
+    try {
+      debugPrint('[UserDto.fromJson] Starting parse, json keys: ${json.keys}');
+      debugPrint(
+        '[UserDto.fromJson] status value: ${json['status']} (type: ${json['status']?.runtimeType})',
+      );
+
+      final statusValue = json['status'];
+      debugPrint(
+        '[UserDto.fromJson] About to call UserStatus.fromDynamic with: $statusValue',
+      );
+
+      final status = UserStatus.fromDynamic(statusValue);
+      debugPrint('[UserDto.fromJson] UserStatus.fromDynamic returned: $status');
+
+      return UserDto(
+        id: json['id']?.toString() ?? '',
+        username: json['username'] as String,
+        email: json['email'] as String,
+        displayName: json['displayName'] as String?,
+        avatarUrl: json['avatarUrl'] as String?,
+        createdAt: DateTime.parse(json['createdAt'].toString()),
+        lastSeenAt: json['lastSeenAt'] != null
+            ? DateTime.parse(json['lastSeenAt'].toString())
+            : null,
+        status: status,
+        customStatus: json['customStatus'] as String?,
+      );
+    } catch (e, stackTrace) {
+      debugPrint('[UserDto.fromJson] ERROR: $e');
+      debugPrint('[UserDto.fromJson] Stack trace: $stackTrace');
+      rethrow;
+    }
   }
 
   Map<String, dynamic> toJson() {

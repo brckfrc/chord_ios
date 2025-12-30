@@ -173,6 +173,42 @@ class ChatHubNotifier extends StateNotifier<ChatHubState> {
   void off(String methodName) {
     _service.connection?.off(methodName);
   }
+
+  // ========== DM Methods ==========
+
+  /// Join a DM channel
+  Future<void> joinDM(String dmId) async {
+    await invoke('JoinDM', args: [dmId]);
+  }
+
+  /// Leave a DM channel
+  Future<void> leaveDM(String dmId) async {
+    await invoke('LeaveDM', args: [dmId]);
+  }
+
+  /// Send a DM message
+  Future<void> sendDMMessage(String dmId, String content) async {
+    await invoke('SendDMMessage', args: [dmId, {'content': content}]);
+  }
+
+  /// Trigger typing indicator in DM
+  Future<void> typingInDM(String dmId) async {
+    await invoke('TypingInDM', args: [dmId]);
+  }
+
+  /// Stop typing indicator in DM
+  Future<void> stopTypingInDM(String dmId) async {
+    await invoke('StopTypingInDM', args: [dmId]);
+  }
+
+  /// Mark DM as read
+  Future<void> markDMAsRead(String dmId, {String? lastReadMessageId}) async {
+    if (lastReadMessageId != null) {
+      await invoke('MarkDMAsRead', args: [dmId, lastReadMessageId]);
+    } else {
+      await invoke('MarkDMAsRead', args: [dmId]);
+    }
+  }
 }
 
 /// ChatHub provider

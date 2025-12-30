@@ -12,12 +12,12 @@ import '../../repositories/guild_repository.dart';
 /// Message composer widget with typing indicator and @ mention autocomplete
 class MessageComposer extends ConsumerStatefulWidget {
   final String channelId;
-  final String guildId;
+  final String? guildId; // Optional for DM support
 
   const MessageComposer({
     super.key,
     required this.channelId,
-    required this.guildId,
+    this.guildId, // Optional - null for DMs
   });
 
   @override
@@ -43,7 +43,10 @@ class _MessageComposerState extends ConsumerState<MessageComposer> {
   void initState() {
     super.initState();
     _controller.addListener(_onTextChanged);
-    _loadGuildMembers();
+    // Only load guild members if guildId is provided (not a DM)
+    if (widget.guildId != null) {
+      _loadGuildMembers();
+    }
   }
 
   @override
@@ -58,7 +61,7 @@ class _MessageComposerState extends ConsumerState<MessageComposer> {
 
   /// Load guild members for mention autocomplete
   Future<void> _loadGuildMembers() async {
-    if (_isLoadingMembers) return;
+    if (_isLoadingMembers || widget.guildId == null) return;
 
     setState(() {
       _isLoadingMembers = true;
@@ -66,7 +69,7 @@ class _MessageComposerState extends ConsumerState<MessageComposer> {
 
     try {
       final repository = GuildRepository();
-      final members = await repository.getGuildMembers(widget.guildId);
+      final members = await repository.getGuildMembers(widget.guildId!);
 
       if (mounted) {
         setState(() {
@@ -275,8 +278,8 @@ class _MessageComposerState extends ConsumerState<MessageComposer> {
       _stopTypingIndicator();
     });
 
-    // Check for @ mention pattern
-    if (cursorPosition > 0) {
+    // Check for @ mention pattern (only if guildId is provided, not for DMs)
+    if (widget.guildId != null && cursorPosition > 0) {
       final textBeforeCursor = text.substring(0, cursorPosition);
       final mentionMatch = RegExp(r'@(\w*)$').firstMatch(textBeforeCursor);
 
@@ -324,8 +327,13 @@ class _MessageComposerState extends ConsumerState<MessageComposer> {
         }
       }
 
-      // Backend'deki method ismi: Typing (SendTyping değil)
-      await chatHub.invoke('Typing', args: [widget.channelId]);
+      // Use DM typing methods if guildId is null (DM), otherwise use channel typing
+      if (widget.guildId == null) {
+        await chatHub.typingInDM(widget.channelId);
+      } else {
+        // Backend'deki method ismi: Typing (SendTyping değil)
+        await chatHub.invoke('Typing', args: [widget.channelId]);
+      }
     } catch (e) {
       // Ignore errors
     }
@@ -346,7 +354,12 @@ class _MessageComposerState extends ConsumerState<MessageComposer> {
         }
       }
 
-      await chatHub.invoke('StopTyping', args: [widget.channelId]);
+      // Use DM typing methods if guildId is null (DM), otherwise use channel typing
+      if (widget.guildId == null) {
+        await chatHub.stopTypingInDM(widget.channelId);
+      } else {
+        await chatHub.invoke('StopTyping', args: [widget.channelId]);
+      }
     } catch (e) {
       // Ignore errors
     }
@@ -425,9 +438,17 @@ class _MessageComposerState extends ConsumerState<MessageComposer> {
 
     try {
       final dto = CreateMessageDto(content: content);
-      await ref
-          .read(messageProvider.notifier)
-          .createMessage(widget.channelId, dto);
+      
+      // Use DM message methods if guildId is null (DM), otherwise use channel message
+      if (widget.guildId == null) {
+        await ref
+            .read(messageProvider.notifier)
+            .createDMMessage(widget.channelId, dto);
+      } else {
+        await ref
+            .read(messageProvider.notifier)
+            .createMessage(widget.channelId, dto);
+      }
 
       _controller.clear();
       _stopTypingIndicator();
@@ -519,7 +540,9 @@ class _MessageComposerState extends ConsumerState<MessageComposer> {
                       _sendMessage();
                     },
                     decoration: InputDecoration(
-                      hintText: 'Message #channel',
+                      hintText: widget.guildId == null
+                          ? 'Message...'
+                          : 'Message #channel',
                       border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(8),
                       ),

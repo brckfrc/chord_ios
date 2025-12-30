@@ -2,9 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../providers/dm_provider.dart';
+import '../../providers/signalr/chat_hub_provider.dart';
+import '../../providers/message_provider.dart';
+import '../messages/message_list.dart';
+import '../messages/message_composer.dart';
 
 /// DM view showing messages with a user
-class DMView extends ConsumerWidget {
+class DMView extends ConsumerStatefulWidget {
   final String channelId;
 
   const DMView({
@@ -13,10 +17,60 @@ class DMView extends ConsumerWidget {
   });
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<DMView> createState() => _DMViewState();
+}
+
+class _DMViewState extends ConsumerState<DMView> {
+  @override
+  void initState() {
+    super.initState();
+    // Join DM when view is opened
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _joinDM();
+      _fetchMessages();
+    });
+  }
+
+  @override
+  void dispose() {
+    // Leave DM when view is closed
+    _leaveDM();
+    super.dispose();
+  }
+
+  Future<void> _joinDM() async {
+    try {
+      final chatHub = ref.read(chatHubProvider.notifier);
+      await chatHub.joinDM(widget.channelId);
+    } catch (e) {
+      // Ignore errors
+    }
+  }
+
+  Future<void> _leaveDM() async {
+    try {
+      final chatHub = ref.read(chatHubProvider.notifier);
+      await chatHub.leaveDM(widget.channelId);
+    } catch (e) {
+      // Ignore errors
+    }
+  }
+
+  Future<void> _fetchMessages() async {
+    try {
+      await ref.read(messageProvider.notifier).fetchDMMessages(widget.channelId);
+      // Mark DM as read when viewing
+      await ref.read(dmProvider.notifier).markDMAsRead(widget.channelId);
+    } catch (e) {
+      // Ignore errors
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final dmState = ref.watch(dmProvider);
     final dm = dmState.dms.firstWhere(
-      (d) => d.id == channelId,
+      (d) => d.id == widget.channelId,
       orElse: () => dmState.dms.isNotEmpty ? dmState.dms.first : throw StateError('DM not found'),
     );
 
@@ -120,73 +174,16 @@ class DMView extends ConsumerWidget {
                 ],
               ),
             ),
-            // Messages Area (placeholder for now)
+            // Messages Area
             Expanded(
-              child: Center(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    const Icon(
-                      Icons.chat_bubble_outline,
-                      size: 64,
-                      color: Colors.grey,
-                    ),
-                    const SizedBox(height: 16),
-                    Text(
-                      'Direct Message',
-                      style: TextStyle(
-                        color: Theme.of(context)
-                            .colorScheme
-                            .onSurface
-                            .withOpacity(0.6),
-                        fontSize: 16,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      'Conversation with ${otherUser.displayName ?? 'Unknown'}',
-                      style: const TextStyle(
-                        color: Colors.grey,
-                        fontSize: 14,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      'Messaging UI will be implemented in FAZ 4',
-                      style: TextStyle(
-                        color: Theme.of(context)
-                            .colorScheme
-                            .onSurface
-                            .withOpacity(0.4),
-                        fontSize: 12,
-                      ),
-                    ),
-                  ],
-                ),
+              child: MessageList(
+                channelId: widget.channelId,
               ),
             ),
-            // Message Input (placeholder for now)
-            Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                border: Border(
-                  top: BorderSide(
-                    color: Color(0xFF1F2023), // Darker gray separator
-                    width: 1,
-                  ),
-                ),
-              ),
-              child: TextField(
-                decoration: InputDecoration(
-                  hintText: 'Message ${otherUser.displayName ?? 'User'}',
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  filled: true,
-                  fillColor: Theme.of(context).colorScheme.surfaceContainerHighest,
-                ),
-                enabled: false, // Disabled for now
-              ),
+            // Message Composer
+            MessageComposer(
+              channelId: widget.channelId,
+              guildId: null, // DM'lerde guild yok
             ),
           ],
         ),

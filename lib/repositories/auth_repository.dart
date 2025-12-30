@@ -1,4 +1,5 @@
 import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart';
 import '../models/auth/login_dto.dart';
 import '../models/auth/register_dto.dart';
 import '../models/auth/refresh_token_dto.dart';
@@ -21,6 +22,12 @@ class AuthRepository {
     try {
       final response = await _apiClient.post('/auth/login', data: dto.toJson());
 
+      debugPrint('[AuthRepository.login] Response received');
+      debugPrint(
+        '[AuthRepository.login] Response data type: ${response.data.runtimeType}',
+      );
+      debugPrint('[AuthRepository.login] Response data: ${response.data}');
+
       final tokenResponse = TokenResponseDto.fromJson(response.data);
 
       // Save tokens
@@ -30,11 +37,14 @@ class AuthRepository {
 
       return tokenResponse;
     } on DioException catch (e) {
+      debugPrint('[AuthRepository.login] DioException: $e');
       if (e.response?.statusCode == 401) {
         throw Exception('Invalid email/username or password');
       }
       throw Exception(e.response?.data['message'] ?? 'Login failed');
-    } catch (e) {
+    } catch (e, stackTrace) {
+      debugPrint('[AuthRepository.login] ERROR: $e');
+      debugPrint('[AuthRepository.login] Stack trace: $stackTrace');
       throw Exception('Login failed: ${e.toString()}');
     }
   }

@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/message/message_dto.dart';
+import '../models/message/direct_message_dto.dart';
 import '../models/message/create_message_dto.dart';
 import '../models/auth/user_dto.dart';
 import '../models/auth/user_status.dart';
@@ -301,6 +302,120 @@ class MessageNotifier extends StateNotifier<MessageState> {
             // Note: We can't access BuildContext here, so we'll use a global navigator key
             // For now, we'll just update the state - UI can show notification based on state
             // In a real app, you'd use a notification service or overlay
+          }
+        } catch (e) {
+          // Ignore parsing errors
+        }
+      }
+    });
+
+    // ========== DM Event Listeners ==========
+
+    // Listen to DMReceiveMessage event
+    chatHub.on('DMReceiveMessage', (args) {
+      if (args != null && args.isNotEmpty) {
+        try {
+          final messageJson = args[0] as Map<String, dynamic>;
+          final dmMessage = DirectMessageDto.fromJson(messageJson);
+          final message = dmMessage.toMessageDto(); // Convert to MessageDto
+
+          // Check if we have a pending message with same content from current user
+          final dmMessages = state.messagesByChannel[message.channelId] ?? [];
+          final authState = _ref.read(authProvider);
+          final currentUserId = authState.user?.id;
+
+          if (currentUserId != null && message.userId == currentUserId) {
+            // Try to find pending message with same content
+            final pendingIndex = dmMessages.indexWhere(
+              (m) =>
+                  m.isPending &&
+                  m.content == message.content &&
+                  m.userId == message.userId,
+            );
+
+            if (pendingIndex >= 0) {
+              // Replace pending message with real message
+              _replacePendingMessage(
+                message.channelId,
+                dmMessages[pendingIndex].id,
+                message,
+              );
+              return;
+            }
+          }
+
+          // Normal add (not replacing pending)
+          _addMessageToChannel(message.channelId, message);
+        } catch (e) {
+          // Ignore parsing errors
+        }
+      }
+    });
+
+    // Listen to DMMessageEdited event
+    chatHub.on('DMMessageEdited', (args) {
+      if (args != null && args.isNotEmpty) {
+        try {
+          final messageJson = args[0] as Map<String, dynamic>;
+          final dmMessage = DirectMessageDto.fromJson(messageJson);
+          final message = dmMessage.toMessageDto(); // Convert to MessageDto
+          _updateMessageInChannel(message.channelId, message);
+        } catch (e) {
+          // Ignore parsing errors
+        }
+      }
+    });
+
+    // Listen to DMMessageDeleted event
+    chatHub.on('DMMessageDeleted', (args) {
+      if (args != null && args.length >= 2) {
+        try {
+          final dmChannelId = args[0] as String;
+          final messageId = args[1] as String;
+          _removeMessageFromChannel(dmChannelId, messageId);
+        } catch (e) {
+          // Ignore parsing errors
+        }
+      }
+    });
+
+    // Listen to DMUserTyping event
+    chatHub.on('DMUserTyping', (args) {
+      // Backend formatı: { userId, username, dmChannelId }
+      if (args != null && args.length >= 1) {
+        try {
+          if (args[0] is Map) {
+            final data = args[0] as Map<String, dynamic>;
+            final dmChannelId = data['dmChannelId']?.toString() ?? '';
+            final userId = data['userId']?.toString() ?? '';
+            final username = data['username']?.toString() ?? userId;
+
+            // UserDto oluştur
+            final user = UserDto(
+              id: userId,
+              username: username,
+              email: '',
+              createdAt: DateTime.now(),
+              status: UserStatus.offline,
+            );
+            _addTypingUser(dmChannelId, user);
+          }
+        } catch (e) {
+          // Ignore parsing errors
+        }
+      }
+    });
+
+    // Listen to DMUserStoppedTyping event
+    chatHub.on('DMUserStoppedTyping', (args) {
+      // Backend formatı: { userId, dmChannelId }
+      if (args != null && args.length >= 1) {
+        try {
+          if (args[0] is Map) {
+            final data = args[0] as Map<String, dynamic>;
+            final dmChannelId = data['dmChannelId']?.toString() ?? '';
+            final userId = data['userId']?.toString() ?? '';
+            _removeTypingUser(dmChannelId, userId);
           }
         } catch (e) {
           // Ignore parsing errors
@@ -612,6 +727,178 @@ class MessageNotifier extends StateNotifier<MessageState> {
       messagesByChannel: updatedMessagesByChannel,
       typingUsersByChannel: updatedTypingUsers,
     );
+  }
+
+  // ========== DM Messages Methods ==========
+
+  /// Fetch DM messages for a DM channel
+  Future<void> fetchDMMessages(
+    String dmId, {
+    int page = 1,
+    bool loadMore = false,
+    bool forceRefresh = false,
+  }) async {
+    final currentMessages = state.getMessagesForChannel(dmId);
+    final isLoading = state.isLoadingChannel(dmId);
+
+    if (isLoading) return;
+
+    // If not forcing refresh and we have cached messages, load from cache first
+    if (!forceRefresh && currentMessages.isEmpty) {
+      final cachedMessages = MessageCacheService.getCachedMessages(dmId);
+      if (cachedMessages.isNotEmpty) {
+        state = state.copyWith(
+          messagesByChannel: {
+            ...state.messagesByChannel,
+            dmId: cachedMessages,
+          },
+        );
+        // Continue to fetch from API in background
+      }
+    }
+
+    state = state.copyWith(
+      isLoadingByChannel: {...state.isLoadingByChannel, dmId: true},
+      errorByChannel: {...state.errorByChannel, dmId: null},
+    );
+
+    try {
+      final actualPage = loadMore && currentMessages.isNotEmpty
+          ? page + 1
+          : page;
+      
+      final dmMessages = await _repository.fetchDMMessages(
+        dmId,
+        page: actualPage,
+        pageSize: 50,
+        forceRefresh: forceRefresh,
+      );
+
+      // Convert DirectMessageDto to MessageDto
+      final messages = dmMessages.map((dm) => dm.toMessageDto()).toList();
+
+      final updatedMessagesByChannel = Map<String, List<MessageDto>>.from(
+        state.messagesByChannel,
+      );
+      final existingMessages = updatedMessagesByChannel[dmId] ?? [];
+
+      if (loadMore) {
+        // Append older messages
+        updatedMessagesByChannel[dmId] = [
+          ...existingMessages,
+          ...messages,
+        ];
+      } else {
+        // Replace with new messages
+        updatedMessagesByChannel[dmId] = messages;
+      }
+
+      // Sort by createdAt (oldest first)
+      updatedMessagesByChannel[dmId]!.sort(
+        (a, b) => a.createdAt.compareTo(b.createdAt),
+      );
+
+      // Since backend doesn't provide pagination metadata, assume hasMore if we got pageSize messages
+      final hasMore = messages.length >= 50;
+      final oldestMessageId = messages.isNotEmpty ? messages.first.id : null;
+
+      state = state.copyWith(
+        messagesByChannel: updatedMessagesByChannel,
+        isLoadingByChannel: {...state.isLoadingByChannel, dmId: false},
+        hasMoreByChannel: {...state.hasMoreByChannel, dmId: hasMore},
+        oldestMessageIdByChannel: oldestMessageId != null
+            ? {...state.oldestMessageIdByChannel, dmId: oldestMessageId}
+            : state.oldestMessageIdByChannel,
+      );
+    } catch (e) {
+      state = state.copyWith(
+        isLoadingByChannel: {...state.isLoadingByChannel, dmId: false},
+        errorByChannel: {...state.errorByChannel, dmId: e.toString()},
+      );
+    }
+  }
+
+  /// Create a new DM message with optimistic update
+  Future<MessageDto?> createDMMessage(
+    String dmId,
+    CreateMessageDto dto,
+  ) async {
+    final authState = _ref.read(authProvider);
+    final currentUser = authState.user;
+
+    if (currentUser == null) {
+      return null;
+    }
+
+    // Create pending message immediately (optimistic update)
+    final pendingId = 'pending_${DateTime.now().millisecondsSinceEpoch}';
+    final pendingMessage = MessageDto(
+      id: pendingId,
+      channelId: dmId,
+      userId: currentUser.id,
+      content: dto.content,
+      createdAt: DateTime.now(),
+      user: currentUser,
+      isPending: true, // Mark as pending
+    );
+
+    // Add pending message to UI immediately
+    _addMessageToChannel(dmId, pendingMessage);
+
+    try {
+      final dmMessage = await _repository.createDMMessage(dmId, dto);
+
+      // If message is null, it means it was queued (offline mode)
+      if (dmMessage == null) {
+        // Keep pending message, it will be sent when online
+        return null;
+      }
+
+      // Convert to MessageDto and replace pending message
+      final message = dmMessage.toMessageDto();
+      _replacePendingMessage(dmId, pendingId, message);
+
+      return message;
+    } catch (e) {
+      // Remove pending message on error
+      _removeMessageFromChannel(dmId, pendingId);
+
+      state = state.copyWith(
+        errorByChannel: {...state.errorByChannel, dmId: e.toString()},
+      );
+      return null;
+    }
+  }
+
+  /// Update a DM message
+  Future<MessageDto?> updateDMMessage(
+    String dmId,
+    String messageId,
+    UpdateMessageDto dto,
+  ) async {
+    try {
+      final dmMessage = await _repository.updateDMMessage(dmId, messageId, dto);
+      final message = dmMessage.toMessageDto(); // Convert to MessageDto
+      _updateMessageInChannel(dmId, message);
+      return message;
+    } catch (e) {
+      state = state.copyWith(
+        errorByChannel: {...state.errorByChannel, dmId: e.toString()},
+      );
+      return null;
+    }
+  }
+
+  /// Delete a DM message
+  Future<void> deleteDMMessage(String dmId, String messageId) async {
+    try {
+      await _repository.deleteDMMessage(dmId, messageId);
+      _removeMessageFromChannel(dmId, messageId);
+    } catch (e) {
+      state = state.copyWith(
+        errorByChannel: {...state.errorByChannel, dmId: e.toString()},
+      );
+    }
   }
 }
 

@@ -35,8 +35,9 @@ final chatHubServiceProvider = Provider<SignalRService>((ref) {
 /// ChatHub state provider
 class ChatHubNotifier extends StateNotifier<ChatHubState> {
   final SignalRService _service;
+  final Ref _ref;
 
-  ChatHubNotifier(this._service) : super(ChatHubState()) {
+  ChatHubNotifier(this._service, this._ref) : super(ChatHubState()) {
     _initialize();
   }
 
@@ -177,6 +178,6 @@ class ChatHubNotifier extends StateNotifier<ChatHubState> {
 /// ChatHub provider
 final chatHubProvider = StateNotifierProvider<ChatHubNotifier, ChatHubState>((ref) {
   final service = ref.watch(chatHubServiceProvider);
-  return ChatHubNotifier(service);
+  return ChatHubNotifier(service, ref);
 });
 

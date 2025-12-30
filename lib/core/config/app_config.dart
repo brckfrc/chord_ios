@@ -1,32 +1,69 @@
 import 'dart:io';
 
+/// Environment enum
+enum Environment { development, production }
+
 /// Application configuration
 class AppConfig {
-  // Backend API base URL
-  // Android Emulator: Use 10.0.2.2 instead of localhost
-  // iOS Simulator/Web: Use localhost
-  // Production: Update with your production URL
+  static Environment _currentEnvironment = Environment.development;
+  
+  /// Configure environment based on --dart-define
+  static void configure() {
+    const env = String.fromEnvironment('ENV', defaultValue: 'development');
+    _currentEnvironment = env == 'production' 
+      ? Environment.production 
+      : Environment.development;
+  }
+  
+  /// Current environment
+  static Environment get currentEnvironment => _currentEnvironment;
+  
+  /// Backend API base URL
   static String get apiBaseUrl {
-    const baseUrl = String.fromEnvironment('API_BASE_URL', defaultValue: '');
-
-    if (baseUrl.isNotEmpty) {
-      return baseUrl;
+    switch (_currentEnvironment) {
+      case Environment.development:
+        // Use 10.0.2.2 for Android emulator, localhost for others
+        if (Platform.isAndroid) {
+          return 'http://10.0.2.2:5049/api';
+        }
+        return 'http://localhost:5049/api';
+      case Environment.production:
+        return 'https://chord.borak.dev/api';
     }
-
-    // Use 10.0.2.2 for Android emulator, localhost for others
-    if (Platform.isAndroid) {
-      return 'http://10.0.2.2:5049/api';
-    }
-    return 'http://localhost:5049/api';
   }
 
-  // SignalR Hub URL
-  static String get signalRUrl => apiBaseUrl.replaceAll('/api', '/hubs');
+  /// SignalR Hub base URL
+  static String get signalRUrl {
+    switch (_currentEnvironment) {
+      case Environment.development:
+        // Use 10.0.2.2 for Android emulator, localhost for others
+        if (Platform.isAndroid) {
+          return 'http://10.0.2.2:5049';
+        }
+        return 'http://localhost:5049';
+      case Environment.production:
+        return 'https://chord.borak.dev';
+    }
+  }
+  
+  /// LiveKit WebRTC server URL
+  static String get liveKitUrl {
+    switch (_currentEnvironment) {
+      case Environment.development:
+        // Use 10.0.2.2 for Android emulator, localhost for others
+        if (Platform.isAndroid) {
+          return 'ws://10.0.2.2:7880';
+        }
+        return 'ws://localhost:7880';
+      case Environment.production:
+        return 'wss://chord.borak.dev:7880';
+    }
+  }
 
   // App version
   static const String appVersion = '1.0.0';
 
-  // Environment
-  static const bool isProduction = bool.fromEnvironment('dart.vm.product');
-  static const bool isDevelopment = !isProduction;
+  // Environment flags
+  static bool get isProduction => _currentEnvironment == Environment.production;
+  static bool get isDevelopment => _currentEnvironment == Environment.development;
 }

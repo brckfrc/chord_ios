@@ -10,6 +10,9 @@ import 'core/config/app_config.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
+  // Configure environment (development/production)
+  AppConfig.configure();
+
   // Error handling for Flutter framework errors
   FlutterError.onError = (FlutterErrorDetails details) {
     FlutterError.presentError(details);

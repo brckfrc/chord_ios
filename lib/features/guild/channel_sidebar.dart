@@ -1,14 +1,19 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:flutter/foundation.dart';
+import 'dart:io';
 import '../../providers/guild_provider.dart';
 import '../../providers/channel_provider.dart';
+import '../../providers/voice_provider.dart';
 import '../../models/guild/channel_dto.dart';
 import '../../models/guild/channel_type.dart';
 import '../../features/modals/create_channel_modal.dart';
 import '../../features/modals/invite_modal.dart';
 import '../../shared/widgets/app_loading.dart';
 import '../../providers/mention_provider.dart';
+import '../../services/permissions/permission_service.dart';
+import '../../shared/widgets/app_toast.dart';
 
 /// Channel sidebar widget
 class ChannelSidebar extends ConsumerStatefulWidget {
@@ -31,6 +36,21 @@ class _ChannelSidebarState extends ConsumerState<ChannelSidebar> {
       _sectionExpanded[sectionTitle] =
           !(_sectionExpanded[sectionTitle] ?? true);
     });
+  }
+  
+  /// Check if running on iOS Simulator
+  Future<bool> _isSimulator() async {
+    if (kIsWeb) return false;
+    if (!Platform.isIOS) return false;
+    
+    // On iOS, simulator can be detected by checking if device has certain characteristics
+    // For now, we'll assume real device (this check is best-effort)
+    try {
+      // Could use device_info_plus for more accurate detection
+      return false; // Default to false (real device)
+    } catch (e) {
+      return false;
+    }
   }
 
   @override
@@ -290,11 +310,93 @@ class _ChannelSidebarState extends ConsumerState<ChannelSidebar> {
                             title: 'VOICE CHANNELS',
                             channels: voiceChannels,
                             selectedChannelId: selectedChannelId,
-                            onChannelTap: (channel) {
-                              // Voice channel handling (for future implementation)
-                              ref
-                                  .read(channelProvider.notifier)
-                                  .setSelectedChannel(channel.id);
+                            onChannelTap: (channel) async {
+                              // Check if running on iOS Simulator
+                              final isSimulator = !kIsWeb && 
+                                                  Platform.isIOS && 
+                                                  (await _isSimulator());
+                              
+                              if (isSimulator) {
+                                // Show simulator warning
+                                if (context.mounted) {
+                                  showDialog(
+                                    context: context,
+                                    builder: (context) => AlertDialog(
+                                      title: const Text('⚠️ Simulator Limitation'),
+                                      content: const Text(
+                                        'Voice channels cannot be tested on iOS Simulator due to microphone hardware limitation.\n\n'
+                                        'Please test on a real iPhone device.'
+                                      ),
+                                      actions: [
+                                        TextButton(
+                                          onPressed: () => Navigator.pop(context),
+                                          child: const Text('OK'),
+                                        ),
+                                      ],
+                                    ),
+                                  );
+                                }
+                                return;
+                              }
+                              
+                              final voiceState = ref.read(voiceProvider);
+                              
+                              // If already in this channel, do nothing
+                              if (voiceState.activeChannelId == channel.id) {
+                                return;
+                              }
+                              
+                              // Request microphone permission
+                              final permissionService = PermissionService();
+                              final hasPermission = await permissionService.isMicrophoneGranted();
+                              
+                              if (!hasPermission) {
+                                final granted = await permissionService.requestMicrophonePermission();
+                                
+                                if (!granted) {
+                                  // Show permission denied dialog
+                                  if (context.mounted) {
+                                    showDialog(
+                                      context: context,
+                                      builder: (context) => AlertDialog(
+                                        title: const Text('Microphone Permission Required'),
+                                        content: const Text(
+                                          'Please enable microphone access in Settings to join voice channels.'
+                                        ),
+                                        actions: [
+                                          TextButton(
+                                            onPressed: () => Navigator.pop(context),
+                                            child: const Text('Cancel'),
+                                          ),
+                                          TextButton(
+                                            onPressed: () async {
+                                              Navigator.pop(context);
+                                              await permissionService.openSettings();
+                                            },
+                                            child: const Text('Open Settings'),
+                                          ),
+                                        ],
+                                      ),
+                                    );
+                                  }
+                                  return;
+                                }
+                              }
+                              
+                              // Join voice channel
+                              if (context.mounted) {
+                                AppToast.show(context, 'Joining voice channel...');
+                              }
+                              await ref.read(voiceProvider.notifier).joinVoiceChannel(channel.id);
+                              
+                              final newVoiceState = ref.read(voiceProvider);
+                              if (context.mounted) {
+                                if (newVoiceState.error != null) {
+                                  AppToast.showError(context, 'Failed to join voice channel: ${newVoiceState.error}');
+                                } else if (newVoiceState.isConnected) {
+                                  AppToast.showSuccess(context, 'Connected to voice channel');
+                                }
+                              }
                             },
                             onCreateChannel: () {
                               showDialog(

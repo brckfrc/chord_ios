@@ -28,6 +28,32 @@ class ConnectivityService {
   Stream<NetworkStatus> get onConnectivityChanged {
     return _connectivity.onConnectivityChanged.map(_getNetworkStatus);
   }
+  
+  /// Check if device is connected to internet
+  Future<bool> isConnected() async {
+    final status = await checkConnectivity();
+    return status == NetworkStatus.connected;
+  }
+  
+  /// Get raw connectivity result stream
+  Stream<List<ConnectivityResult>> get networkStream {
+    return _connectivity.onConnectivityChanged;
+  }
+  
+  /// Get connection type as string
+  Future<String> getConnectionType() async {
+    final result = await _connectivity.checkConnectivity();
+    
+    if (result.contains(ConnectivityResult.wifi)) {
+      return 'WiFi';
+    } else if (result.contains(ConnectivityResult.mobile)) {
+      return 'Cellular';
+    } else if (result.contains(ConnectivityResult.ethernet)) {
+      return 'Ethernet';
+    } else {
+      return 'None';
+    }
+  }
 
   /// Dispose resources
   void dispose() {

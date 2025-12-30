@@ -49,22 +49,24 @@ jobs:
             --release \
             --no-codesign
 
-      - name: Create IPA (optional - requires signing)
-        if: false # Set to true if you have certificates
+      - name: Create IPA for AltStore (no signing required)
         run: |
-          cd ios
-          xcodebuild -workspace Runner.xcworkspace \
-            -scheme Runner \
-            -configuration Release \
-            -destination generic/platform=iOS \
-            -archivePath build/Runner.xcarchive \
-            archive CODE_SIGN_IDENTITY="" CODE_SIGNING_REQUIRED=NO
-          xcodebuild -exportArchive \
-            -archivePath build/Runner.xcarchive \
-            -exportPath build/ipa \
-            -exportOptionsPlist ExportOptions.plist
+          # Create Payload directory
+          mkdir -p build/ipa/Payload
+          
+          # Copy .app to Payload
+          cp -r build/ios/iphoneos/Runner.app build/ipa/Payload/
+          
+          # Create IPA (zip with .ipa extension)
+          cd build/ipa
+          zip -r Chord.ipa Payload/
+          
+          # Move IPA to build root for easier access
+          mv Chord.ipa ../Chord.ipa
+          
+          echo "✅ IPA created: build/Chord.ipa"
 
-      - name: Upload build artifacts
+      - name: Upload build artifacts (.app)
         uses: actions/upload-artifact@v6.0.0
         with:
           name: ios-build
@@ -73,10 +75,9 @@ jobs:
             build/ios/iphoneos/Runner.app.dSYM
           retention-days: 30
 
-      - name: Upload IPA (if created)
-        if: false # Set to true if IPA is created
+      - name: Upload IPA (for AltStore)
         uses: actions/upload-artifact@v6.0.0
         with:
           name: ios-ipa
-          path: ios/build/ipa/*.ipa
+          path: build/Chord.ipa
           retention-days: 30

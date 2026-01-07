@@ -247,27 +247,40 @@
 
 ## 🏗️ FAZ 6: VOICE CHANNEL UI & WEBRTC TEMEL
 
+**Durum**: ⚠️ %85 TAMAMLANDI (UI ve temel bağlantı hazır, real-time updates UI'da görünmüyor - debug & fix gerekiyor)
 **Süre**: ~1.5 hafta
 **Backend Bağımlılığı**: ✅ FAZ 3 tamamlandı (Voice channel presence hazır)
 **Frontend Referans**: `VoiceBar.tsx`, `VoiceChannelUsers.tsx`, `UserProfileBar.tsx`
 
 ### Görevler
 
-- [ ] Voice channel UI (join/leave butonları)
-- [ ] VoiceBar widget (connection status, disconnect button)
-- [ ] VoiceChannelUsers widget (active participants list)
-- [ ] ChatHub voice methods (JoinVoiceChannel, LeaveVoiceChannel, UpdateVoiceState)
-- [ ] Voice channel SignalR events (UserJoinedVoiceChannel, UserLeftVoiceChannel, UserVoiceStateChanged)
-- [ ] `flutter_webrtc` package kurulumu
-- [ ] WebRTC temel setup (RTCPeerConnection, local/remote streams)
-- [ ] 1-1 P2P bağlantı testi
-- [ ] **Not**: Backend RtcSignalingHub hazır değilse, alternatif olarak SignalR üzerinden signaling yapılabilir (geçici çözüm)
+- [x] Voice channel UI (join/leave butonları) ✅
+- [x] VoiceBar widget (connection status, disconnect button) ✅
+- [x] VoiceChannelUsers widget (active participants list) ✅
+- [x] ChatHub voice methods (JoinVoiceChannel, LeaveVoiceChannel, UpdateVoiceState) ✅
+- [x] Voice channel SignalR events (UserJoinedVoiceChannel, UserLeftVoiceChannel, UserVoiceStateChanged) ✅
+- [x] WebRTC temel setup (LiveKit kullanılıyor - `livekit_client` package) ✅
+- [x] Voice connection testi (LiveKit room connection) ✅
+- [ ] **Voice UI Real-Time Updates - Debugging & Fix**:
+  - [ ] Real-time participant list updates kontrolü ve düzeltme (kullanıcıların anlık görünmesi - SignalR event'leri UI'da görünmüyor, kontrol edilecek)
+  - [ ] Voice activity indicators kontrolü ve düzeltme (speaking indicators - yeşil border/avatar UI'da anlık güncellenmiyor, kontrol edilecek)
+  - [ ] Voice state synchronization kontrolü ve düzeltme (mute/deafen durumları UI'da anlık görünmüyor, kontrol edilecek)
+  - [ ] `VoiceChannelUsers` widget reactive updates kontrolü (`ref.watch(voiceProvider)` çalışıyor mu, state güncellemeleri UI'ya yansıyor mu kontrol edilecek)
+  - [ ] `VoiceBar` widget real-time updates kontrolü (connection status ve participant count anlık güncelleniyor mu kontrol edilecek)
+  - [ ] SignalR event handler'ların doğru çalıştığı kontrol edilecek (`UserJoinedVoiceChannel`, `UserLeftVoiceChannel`, `UserVoiceStateChanged`)
+  - [ ] LiveKit speaking events'in state'e doğru yansıdığı kontrol edilecek
+  - [ ] Speaking state animasyonları (smooth transitions) - yeşil border var, animasyon eklenebilir
+- [x] **Not**: LiveKit kullanılıyor (SignalR üzerinden token alınıyor, LiveKit room'a bağlanılıyor) ✅
 
 ### Deliverables
 
 ✅ Voice channel UI hazır
-✅ Voice channel'a join/leave çalışıyor (presence)
-✅ 1-1 WebRTC bağlantı kuruluyor
+✅ Voice channel'a join/leave çalışıyor (presence + LiveKit)
+✅ LiveKit room bağlantısı kuruluyor (WebRTC backend)
+⚠️ Voice channel'daki kullanıcılar anlık görünmüyor (SignalR event'leri UI'da yansımıyor - debug & fix gerekiyor)
+⚠️ Ses aktiviteleri (speaking indicators) anlık güncellenmiyor (yeşil border/avatar UI'da görünmüyor - debug & fix gerekiyor)
+⚠️ Mute/deafen durumları anlık senkronize olmuyor (UI'da görünmüyor - debug & fix gerekiyor)
+⚠️ VoiceBar ve VoiceChannelUsers reactive updates kontrol edilecek (`ref.watch` çalışıyor mu, state güncellemeleri UI'ya yansıyor mu)
 
 ---
 

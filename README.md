@@ -67,31 +67,42 @@ flutter pub get
 
 ### 3. Configure Backend API Connection
 
-Edit `lib/core/config/app_config.dart`:
+The app uses environment-based configuration. By default, it runs in **development mode** and connects to `localhost:5049`.
 
-```dart
-class AppConfig {
-  static const String apiBaseUrl = 'http://localhost:5049/api';
-  static const String signalRBaseUrl = 'http://localhost:5049';
-  static const bool isProduction = false;
-}
-```
+**Development Mode (Default):**
+
+- API: `http://localhost:5049/api`
+- SignalR: `http://localhost:5049`
+- LiveKit: `ws://localhost:7880`
+
+**Production Mode:**
+
+- API: `https://chord.borak.dev/api`
+- SignalR: `https://chord.borak.dev`
+- LiveKit: `wss://chord.borak.dev:7880`
 
 **Important Notes:**
 
 - `apiBaseUrl` **must include `/api` prefix** (e.g., `http://localhost:5049/api`)
 - `signalRBaseUrl` **must not include trailing slash** (e.g., `http://localhost:5049`)
+- Configuration is in `lib/core/config/app_config.dart` (no manual editing needed)
+- Environment is set via `--dart-define=ENV=production` flag
 
 ### 4. Run on iOS Simulator or Device
 
 ```bash
-# Run on iOS Simulator
+# Development mode (default - connects to localhost)
 flutter run -d ios
+
+# Production mode (connects to chord.borak.dev)
+flutter run --dart-define=ENV=production -d ios
 
 # List available devices
 flutter devices
 flutter run -d <device-id>
 ```
+
+**Note:** On a real iOS device, `localhost` won't work in development mode. Use production mode or configure your computer's LAN IP address.
 
 ## 📁 Project Structure
 
@@ -163,12 +174,21 @@ flutter run
 ### Build
 
 ```bash
-# iOS Debug build
+# iOS Debug build (development mode)
 flutter build ios --debug
 
-# iOS Release build
+# iOS Release build (development mode)
 flutter build ios --release
+
+# iOS Release build (production mode - for TestFlight/App Store)
+flutter build ios --dart-define=ENV=production --release
 ```
+
+**Production Build Notes:**
+
+- Always use `--dart-define=ENV=production` for production builds
+- Production builds connect to `chord.borak.dev` automatically
+- For Xcode builds, add environment variable: `ENV=production` in scheme settings (Edit Scheme → Run → Arguments → Environment Variables)
 
 ### Code Generation (Hive)
 

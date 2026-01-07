@@ -8,11 +8,7 @@ class ChatHubState {
   final bool isConnected;
   final String? error;
 
-  ChatHubState({
-    this.connectionState,
-    this.isConnected = false,
-    this.error,
-  });
+  ChatHubState({this.connectionState, this.isConnected = false, this.error});
 
   ChatHubState copyWith({
     HubConnectionState? connectionState,
@@ -44,7 +40,7 @@ class ChatHubNotifier extends StateNotifier<ChatHubState> {
   Future<void> _initialize() async {
     try {
       final connection = await _service.getConnection();
-      
+
       // Listen to connection state changes
       connection.onclose((error) {
         state = state.copyWith(
@@ -72,17 +68,48 @@ class ChatHubNotifier extends StateNotifier<ChatHubState> {
 
       // Start connection
       await _service.start();
-      
-      // Connection kurulduktan sonra state'i güncelle
-      // start() async olduğu için biraz bekle ve tekrar kontrol et
+
+      // Update state after connection is established
+      // Wait a bit and check again since start() is async
       await Future.delayed(const Duration(milliseconds: 500));
-      
+
       final currentState = connection.state;
       final isConnected = currentState == HubConnectionState.connected;
-      
+
       state = state.copyWith(
         connectionState: currentState,
         isConnected: isConnected,
+        error: null,
+      );
+    } catch (e) {
+      state = state.copyWith(error: e.toString(), isConnected: false);
+    }
+  }
+
+  /// Start connection
+  Future<void> start() async {
+    try {
+      final connection = await _service.getConnection();
+      
+      // If already connected, just update state and return
+      if (connection.state == HubConnectionState.connected) {
+        state = state.copyWith(
+          connectionState: HubConnectionState.connected,
+          isConnected: true,
+          error: null,
+        );
+        return;
+      }
+
+      // Start connection - SignalRService.start() already handles state checking
+      await _service.start();
+      
+      // Update state based on current connection state
+      // State will be updated via event listeners if connection succeeds
+      final currentState = connection.state;
+      state = state.copyWith(
+        connectionState: currentState,
+        isConnected: currentState == HubConnectionState.connected,
         error: null,
       );
     } catch (e) {
@@ -90,33 +117,7 @@ class ChatHubNotifier extends StateNotifier<ChatHubState> {
         error: e.toString(),
         isConnected: false,
       );
-    }
-  }
-
-  /// Start connection
-  Future<void> start() async {
-    try {
-      await _service.start();
-      
-      // Connection kurulduktan sonra state'i güncelle
-      await Future.delayed(const Duration(milliseconds: 500));
-      
-      final connection = _service.connection;
-      if (connection != null) {
-        final currentState = connection.state;
-        final isConnected = currentState == HubConnectionState.connected;
-        
-        state = state.copyWith(
-          connectionState: currentState,
-          isConnected: isConnected,
-          error: null,
-        );
-      }
-    } catch (e) {
-      state = state.copyWith(
-        error: e.toString(),
-        isConnected: false,
-      );
+      rethrow;
     }
   }
 
@@ -130,31 +131,30 @@ class ChatHubNotifier extends StateNotifier<ChatHubState> {
         error: null,
       );
     } catch (e) {
-      state = state.copyWith(
-        error: e.toString(),
-      );
+      state = state.copyWith(error: e.toString());
     }
   }
 
   /// Invoke hub method
   Future<dynamic> invoke(String methodName, {List<Object?>? args}) async {
     try {
-      var connection = _service.connection;
-      
-      // Connection yoksa veya bağlı değilse başlat
-      if (connection == null || !_service.isConnected) {
+      var connection = await _service.getConnection();
+
+      // Only start if not connected
+      if (connection.state != HubConnectionState.connected) {
         await start();
-        // start() sonrası connection'ı tekrar al
-        connection = _service.connection;
-        
-        // Tekrar kontrol et
-        if (connection == null || !_service.isConnected) {
-          throw Exception('SignalR connection failed to start');
+        // Re-fetch connection after start to ensure latest state
+        connection = await _service.getConnection();
+
+        // Final verification
+        if (connection.state != HubConnectionState.connected) {
+          throw Exception(
+            'SignalR connection failed: Connection is not in connected state',
+          );
         }
       }
-      
-      final result = await connection.invoke(methodName, args: args);
-      return result;
+
+      return await connection.invoke(methodName, args: args);
     } catch (e) {
       state = state.copyWith(error: e.toString());
       rethrow;
@@ -188,7 +188,13 @@ class ChatHubNotifier extends StateNotifier<ChatHubState> {
 
   /// Send a DM message
   Future<void> sendDMMessage(String dmId, String content) async {
-    await invoke('SendDMMessage', args: [dmId, {'content': content}]);
+    await invoke(
+      'SendDMMessage',
+      args: [
+        dmId,
+        {'content': content},
+      ],
+    );
   }
 
   /// Trigger typing indicator in DM
@@ -212,8 +218,9 @@ class ChatHubNotifier extends StateNotifier<ChatHubState> {
 }
 
 /// ChatHub provider
-final chatHubProvider = StateNotifierProvider<ChatHubNotifier, ChatHubState>((ref) {
+final chatHubProvider = StateNotifierProvider<ChatHubNotifier, ChatHubState>((
+  ref,
+) {
   final service = ref.watch(chatHubServiceProvider);
   return ChatHubNotifier(service, ref);
 });
-

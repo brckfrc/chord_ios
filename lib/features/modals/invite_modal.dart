@@ -3,6 +3,8 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../shared/widgets/app_button.dart';
 import '../../shared/widgets/app_toast.dart';
+import '../../repositories/invite_repository.dart';
+import '../../core/config/app_config.dart';
 
 /// Invite modal for inviting friends to guild
 class InviteModal extends ConsumerStatefulWidget {
@@ -37,26 +39,28 @@ class _InviteModalState extends ConsumerState<InviteModal> {
     });
 
     try {
-      // TODO: Replace with real API endpoint when backend is ready
-      // final inviteCode = await ref.read(guildProvider.notifier).getInviteCode(widget.guildId);
-      // setState(() {
-      //   _inviteCode = inviteCode;
-      //   _isLoading = false;
-      // });
-
-      // Mock implementation for now
-      await Future.delayed(const Duration(milliseconds: 500));
-      setState(() {
-        _inviteCode =
-            'https://chord.app/invite/${widget.guildId.substring(0, 8)}';
-        _isLoading = false;
-      });
+      final repository = InviteRepository();
+      final inviteInfo = await repository.createInvite(widget.guildId);
+      
+      // Build invite link using base URL
+      final baseUrl = AppConfig.signalRUrl; // e.g., http://10.0.2.2:5049 or https://chord.borak.dev
+      final inviteLink = '$baseUrl/invite/${inviteInfo.code}';
+      
+      if (mounted) {
+        setState(() {
+          _inviteCode = inviteLink;
+          _isLoading = false;
+        });
+      }
     } catch (e) {
       if (mounted) {
         setState(() {
           _isLoading = false;
         });
-        AppToast.showError(context, 'Failed to generate invite link');
+        AppToast.showError(
+          context, 
+          'Failed to generate invite link: ${e.toString().replaceAll('Exception: ', '')}'
+        );
       }
     }
   }

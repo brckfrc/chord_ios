@@ -5,14 +5,15 @@ enum Environment { development, production }
 
 /// Application configuration
 class AppConfig {
-  static Environment _currentEnvironment = Environment.development;
+  static Environment _currentEnvironment = Environment.production;
   
   /// Configure environment based on --dart-define
+  /// Default is production. Use --dart-define ENV=development for development mode
   static void configure() {
-    const env = String.fromEnvironment('ENV', defaultValue: 'development');
-    _currentEnvironment = env == 'production' 
-      ? Environment.production 
-      : Environment.development;
+    const env = String.fromEnvironment('ENV', defaultValue: 'production');
+    _currentEnvironment = env == 'development' 
+      ? Environment.development 
+      : Environment.production;
   }
   
   /// Current environment

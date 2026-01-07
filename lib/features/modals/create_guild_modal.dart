@@ -126,6 +126,7 @@ class _CreateGuildModalState extends ConsumerState<CreateGuildModal>
 
   Future<void> _handleGetInviteInfo() async {
     final code = InviteParser.parseInviteCode(_inviteCodeController.text);
+    
     if (code == null || !InviteParser.isValidInviteCode(code)) {
       setState(() {
         _joinError = 'Please enter a valid invite code or link';
@@ -342,10 +343,11 @@ class _CreateGuildModalState extends ConsumerState<CreateGuildModal>
   }
 
   Widget _buildJoinTab() {
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
+    return SingleChildScrollView(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
           AppInput(
             controller: _inviteCodeController,
             label: 'Invite Code or Link',
@@ -419,7 +421,8 @@ class _CreateGuildModalState extends ConsumerState<CreateGuildModal>
             ),
             const SizedBox(height: 8), // Son objeden sonra hafif boşluk
           ],
-      ],
+        ],
+      ),
     );
   }
 

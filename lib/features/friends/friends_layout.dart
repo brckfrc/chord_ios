@@ -11,6 +11,7 @@ class FriendsLayout extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       body: SafeArea(
+        bottom: false, // VoiceBar handles bottom padding
         child: Row(
           children: [
             // Guild Sidebar

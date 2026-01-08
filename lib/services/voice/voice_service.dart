@@ -177,6 +177,7 @@ class VoiceService {
   void _setupRoomListeners() {
     if (_room == null) return;
     
+    // Create listener - it will be automatically disposed when room is disposed
     final listener = _room!.createListener();
     
     // Connection state events
@@ -206,10 +207,18 @@ class VoiceService {
       ..on<ActiveSpeakersChangedEvent>((event) {
         final speakingMap = <String, bool>{};
         for (final speaker in event.speakers) {
-          speakingMap[speaker.sid] = true;
+          // Use identity (userId) instead of sid for mapping
+          // Backend sets participant identity as userId in LiveKit token
+          final userId = speaker.identity.isNotEmpty 
+              ? speaker.identity 
+              : (speaker.name.isNotEmpty ? speaker.name : speaker.sid);
+          if (userId.isNotEmpty) {
+            speakingMap[userId] = true;
+            _logger.debug('Active speaker: ${speaker.name} (identity: ${speaker.identity}, sid: ${speaker.sid}, userId: $userId)');
+          }
         }
         _speakingChangedController.add(speakingMap);
-        _logger.debug('Active speakers: ${event.speakers.map((s) => s.name).join(", ")}');
+        _logger.debug('Active speakers: ${event.speakers.length} (userIds: ${speakingMap.keys.toList()})');
       })
       // Track mute events
       ..on<TrackMutedEvent>((event) {
@@ -225,6 +234,7 @@ class VoiceService {
   /// Dispose resources
   Future<void> dispose() async {
     await disconnect();
+    // Room listener is automatically disposed when room is disposed
     await _participantConnectedController.close();
     await _participantDisconnectedController.close();
     await _speakingChangedController.close();

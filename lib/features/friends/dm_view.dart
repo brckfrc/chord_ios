@@ -80,6 +80,7 @@ class _DMViewState extends ConsumerState<DMView> {
       return Scaffold(
         backgroundColor: Theme.of(context).colorScheme.surface,
         body: SafeArea(
+          bottom: false, // VoiceBar handles bottom padding
           child: Center(
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
@@ -114,6 +115,7 @@ class _DMViewState extends ConsumerState<DMView> {
     return Scaffold(
       backgroundColor: Theme.of(context).colorScheme.surface,
       body: SafeArea(
+        bottom: false, // VoiceBar handles bottom padding
         child: Column(
           children: [
             // DM Header

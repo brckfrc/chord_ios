@@ -75,6 +75,7 @@ class _ChannelViewState extends ConsumerState<ChannelView> {
       return Scaffold(
         backgroundColor: Theme.of(context).colorScheme.surface,
         body: SafeArea(
+          bottom: false, // VoiceBar handles bottom padding
           child: Center(
             child: Padding(
               padding: const EdgeInsets.all(24),
@@ -147,6 +148,7 @@ class _ChannelViewState extends ConsumerState<ChannelView> {
       return Scaffold(
         backgroundColor: Theme.of(context).colorScheme.surface,
         body: SafeArea(
+          bottom: false, // VoiceBar handles bottom padding
           child: Center(
             child: Padding(
               padding: const EdgeInsets.all(24),
@@ -272,6 +274,7 @@ class _ChannelViewState extends ConsumerState<ChannelView> {
         ),
       ),
       body: SafeArea(
+        bottom: false, // VoiceBar handles bottom padding
         child: Column(
           children: [
             // Channel Header

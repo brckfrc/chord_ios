@@ -14,6 +14,7 @@ import '../../shared/widgets/app_loading.dart';
 import '../../providers/mention_provider.dart';
 import '../../services/permissions/permission_service.dart';
 import '../../shared/widgets/app_toast.dart';
+import '../voice/voice_channel_users.dart';
 
 /// Channel sidebar widget
 class ChannelSidebar extends ConsumerStatefulWidget {
@@ -384,18 +385,11 @@ class _ChannelSidebarState extends ConsumerState<ChannelSidebar> {
                               }
                               
                               // Join voice channel
-                              if (context.mounted) {
-                                AppToast.show(context, 'Joining voice channel...');
-                              }
                               await ref.read(voiceProvider.notifier).joinVoiceChannel(channel.id);
                               
                               final newVoiceState = ref.read(voiceProvider);
-                              if (context.mounted) {
-                                if (newVoiceState.error != null) {
-                                  AppToast.showError(context, 'Failed to join voice channel: ${newVoiceState.error}');
-                                } else if (newVoiceState.isConnected) {
-                                  AppToast.showSuccess(context, 'Connected to voice channel');
-                                }
+                              if (context.mounted && newVoiceState.error != null) {
+                                AppToast.showError(context, 'Failed to join voice channel: ${newVoiceState.error}');
                               }
                             },
                             onCreateChannel: () {
@@ -515,22 +509,48 @@ class _ChannelSection extends StatelessWidget {
         ),
         // Channel List
         ...channelsToShow.map(
-          (channel) => Padding(
-            padding: const EdgeInsets.only(left: 8, bottom: 2),
-            child: _ChannelItem(
-              channel: channel,
-              isSelected: selectedChannelId == channel.id,
-              icon: icon,
-              onTap: () => onChannelTap(channel),
-            ),
-          ),
+          (channel) {
+            // For voice channels, show channel item + participants list below
+            if (channel.type == ChannelType.voice) {
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.only(left: 8, bottom: 2),
+                    child: _ChannelItem(
+                      channel: channel,
+                      isSelected: selectedChannelId == channel.id,
+                      icon: icon,
+                      onTap: () => onChannelTap(channel),
+                    ),
+                  ),
+                  // Voice channel users list below the channel item
+                  VoiceChannelUsers(
+                    channelId: channel.id,
+                    channelName: channel.name,
+                  ),
+                ],
+              );
+            } else {
+              // For text/announcement channels, just show the item
+              return Padding(
+                padding: const EdgeInsets.only(left: 8, bottom: 2),
+                child: _ChannelItem(
+                  channel: channel,
+                  isSelected: selectedChannelId == channel.id,
+                  icon: icon,
+                  onTap: () => onChannelTap(channel),
+                ),
+              );
+            }
+          },
         ),
       ],
     );
   }
 }
 
-class _ChannelItem extends StatelessWidget {
+class _ChannelItem extends ConsumerWidget {
   final ChannelDto channel;
   final bool isSelected;
   final IconData icon;
@@ -544,7 +564,15 @@ class _ChannelItem extends StatelessWidget {
   });
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    // Check if this is the active voice channel
+    final voiceState = ref.watch(voiceProvider);
+    final isActiveVoiceChannel = channel.type == ChannelType.voice && 
+                                 voiceState.activeChannelId == channel.id;
+    
+    // Color for active voice channel (green)
+    final activeVoiceColor = const Color(0xFF23A559);
+    
     return InkWell(
       onTap: onTap,
       borderRadius: BorderRadius.circular(4),
@@ -562,9 +590,11 @@ class _ChannelItem extends StatelessWidget {
             Icon(
               icon,
               size: 18,
-              color: isSelected
-                  ? Theme.of(context).colorScheme.primary
-                  : Theme.of(context).colorScheme.onSurface.withOpacity(0.5),
+              color: isActiveVoiceChannel
+                  ? activeVoiceColor
+                  : (isSelected
+                      ? Theme.of(context).colorScheme.primary
+                      : Theme.of(context).colorScheme.onSurface.withOpacity(0.5)),
             ),
             const SizedBox(width: 6),
             Expanded(
@@ -572,12 +602,16 @@ class _ChannelItem extends StatelessWidget {
                 channel.name,
                 style: TextStyle(
                   fontSize: 15,
-                  fontWeight: isSelected ? FontWeight.w500 : FontWeight.w400,
-                  color: isSelected
-                      ? Theme.of(context).colorScheme.onSurface
-                      : Theme.of(
-                          context,
-                        ).colorScheme.onSurface.withOpacity(0.7),
+                  fontWeight: isSelected || isActiveVoiceChannel 
+                      ? FontWeight.w500 
+                      : FontWeight.w400,
+                  color: isActiveVoiceChannel
+                      ? activeVoiceColor
+                      : (isSelected
+                          ? Theme.of(context).colorScheme.onSurface
+                          : Theme.of(
+                              context,
+                            ).colorScheme.onSurface.withOpacity(0.7)),
                 ),
                 overflow: TextOverflow.ellipsis,
               ),

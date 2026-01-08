@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../providers/auth_provider.dart';
 import '../widgets/app_loading.dart';
+import '../../features/voice/voice_bar.dart';
 
 /// Protected route wrapper - redirects to login if not authenticated
 class ProtectedRoute extends ConsumerWidget {
@@ -34,7 +35,14 @@ class ProtectedRoute extends ConsumerWidget {
       );
     }
 
-    return child;
+    // Wrap child with Column to add VoiceBar at bottom
+    // VoiceBar will automatically show/hide based on voice state
+    return Column(
+      children: [
+        Expanded(child: child),
+        const VoiceBar(),
+      ],
+    );
   }
 }
 

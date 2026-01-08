@@ -20,89 +20,27 @@ class VoiceChannelUsers extends ConsumerWidget {
     final voiceState = ref.watch(voiceProvider);
     final authState = ref.watch(authProvider);
 
-    // Only show if this is the active voice channel
-    if (voiceState.activeChannelId != channelId) {
-      return const SizedBox.shrink();
-    }
-
-    final participants = voiceState.participants;
+    // Get participants for this channel (works for all channels, not just active)
+    final participants = voiceState.getParticipantsForChannel(channelId);
     final currentUserId = authState.user?.id;
 
+    // Compact Discord-like display - no header, just participants list
     if (participants.isEmpty) {
-      return Container(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          children: [
-            Text(
-              '🔊 $channelName',
-              style: const TextStyle(
-                color: Colors.white,
-                fontSize: 14,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-            const SizedBox(height: 8),
-            const Text(
-              'No one in voice channel',
-              style: TextStyle(
-                color: Colors.grey,
-                fontSize: 12,
-              ),
-            ),
-          ],
-        ),
-      );
+      return const SizedBox.shrink(); // Don't show empty state - keep it clean
     }
 
-    return Container(
-      margin: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
-      decoration: BoxDecoration(
-        color: const Color(0xFF2B2D31),
-        borderRadius: BorderRadius.circular(8),
-      ),
+    return Padding(
+      padding: const EdgeInsets.only(left: 24, top: 4, bottom: 4),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Header
-          Padding(
-            padding: const EdgeInsets.all(12),
-            child: Row(
-              children: [
-                const Icon(
-                  Icons.volume_up,
-                  size: 16,
-                  color: Colors.grey,
-                ),
-                const SizedBox(width: 8),
-                Text(
-                  '$channelName (${participants.length})',
-                  style: const TextStyle(
-                    color: Colors.grey,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const Divider(height: 1, color: Color(0xFF1F2023)),
-          
-          // Participants list
-          ListView.builder(
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            itemCount: participants.length,
-            itemBuilder: (context, index) {
-              final participant = participants[index];
-              final isCurrentUser = participant.userId == currentUserId;
-              
-              return _buildParticipantItem(
-                participant: participant,
-                isCurrentUser: isCurrentUser,
-              );
-            },
-          ),
-        ],
+        mainAxisSize: MainAxisSize.min,
+        children: participants.map((participant) {
+          final isCurrentUser = participant.userId == currentUserId;
+          return _buildParticipantItem(
+            participant: participant,
+            isCurrentUser: isCurrentUser,
+          );
+        }).toList(),
       ),
     );
   }
@@ -111,113 +49,114 @@ class VoiceChannelUsers extends ConsumerWidget {
     required VoiceParticipantDto participant,
     required bool isCurrentUser,
   }) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-      decoration: BoxDecoration(
-        // Speaking indicator - animated green border
-        border: participant.isSpeaking
-            ? Border.all(
-                color: const Color(0xFF23A559),
-                width: 2,
-              )
-            : null,
-      ),
-      child: Row(
-        children: [
-          // Avatar
-          Container(
-            width: 32,
-            height: 32,
-            decoration: BoxDecoration(
-              color: participant.isSpeaking
-                  ? const Color(0xFF23A559)
-                  : const Color(0xFF5865F2),
-              shape: BoxShape.circle,
-            ),
-            alignment: Alignment.center,
-            child: Text(
-              participant.username.isNotEmpty
-                  ? participant.username[0].toUpperCase()
-                  : '?',
-              style: const TextStyle(
-                color: Colors.white,
-                fontSize: 14,
-                fontWeight: FontWeight.w600,
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 2),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        curve: Curves.easeInOut,
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(4),
+          // Speaking indicator - green background when speaking
+          color: participant.isSpeaking
+              ? const Color(0xFF23A559).withOpacity(0.2)
+              : Colors.transparent,
+        ),
+        child: Row(
+          children: [
+            // Avatar (smaller, Discord-like)
+            AnimatedContainer(
+              duration: const Duration(milliseconds: 200),
+              curve: Curves.easeInOut,
+              width: 26,
+              height: 26,
+              decoration: BoxDecoration(
+                color: participant.isSpeaking
+                    ? const Color(0xFF23A559)
+                    : const Color(0xFF5865F2),
+                shape: BoxShape.circle,
+              ),
+              alignment: Alignment.center,
+              child: Text(
+                participant.username.isNotEmpty
+                    ? participant.username[0].toUpperCase()
+                    : '?',
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                ),
               ),
             ),
-          ),
-          const SizedBox(width: 12),
-          
-          // Username
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Flexible(
-                      child: Text(
-                        participant.displayName ?? participant.username,
-                        style: TextStyle(
-                          color: participant.isSpeaking
-                              ? const Color(0xFF23A559)
-                              : Colors.white,
-                          fontSize: 14,
-                          fontWeight: participant.isSpeaking
-                              ? FontWeight.w600
-                              : FontWeight.normal,
-                        ),
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                    if (isCurrentUser) ...[
-                      const SizedBox(width: 4),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 4,
-                          vertical: 2,
-                        ),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFF5865F2),
-                          borderRadius: BorderRadius.circular(4),
-                        ),
-                        child: const Text(
-                          'you',
+            const SizedBox(width: 10),
+
+            // Username
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Flexible(
+                        child: AnimatedDefaultTextStyle(
+                          duration: const Duration(milliseconds: 200),
+                          curve: Curves.easeInOut,
                           style: TextStyle(
-                            color: Colors.white,
-                            fontSize: 10,
-                            fontWeight: FontWeight.w600,
+                            color: participant.isSpeaking
+                                ? const Color(0xFF23A559)
+                                : Colors.white.withOpacity(0.7),
+                            fontSize: 15,
+                            fontWeight: participant.isSpeaking
+                                ? FontWeight.w600
+                                : FontWeight.normal,
+                          ),
+                          child: Text(
+                            participant.displayName ?? participant.username,
+                            overflow: TextOverflow.ellipsis,
                           ),
                         ),
                       ),
+                      if (isCurrentUser) ...[
+                        const SizedBox(width: 4),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 4,
+                            vertical: 2,
+                          ),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF5865F2),
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                          child: const Text(
+                            'you',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 10,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                      ],
                     ],
-                  ],
-                ),
+                  ),
+                ],
+              ),
+            ),
+
+            // Status icons
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (participant.isMuted)
+                  const Icon(Icons.mic_off, size: 19, color: Colors.red),
+                if (participant.isDeafened) ...[
+                  const SizedBox(width: 4),
+                  const Icon(Icons.headset_off, size: 19, color: Colors.red),
+                ],
               ],
             ),
-          ),
-          
-          // Status icons
-          Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              if (participant.isMuted)
-                const Icon(
-                  Icons.mic_off,
-                  size: 16,
-                  color: Colors.red,
-                ),
-              if (participant.isDeafened) ...[
-                const SizedBox(width: 4),
-                const Icon(
-                  Icons.headset_off,
-                  size: 16,
-                  color: Colors.red,
-                ),
-              ],
-            ],
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

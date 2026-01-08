@@ -16,6 +16,7 @@ class VoiceService {
   final _speakingChangedController =
       StreamController<Map<String, bool>>.broadcast();
   final _trackMutedController = StreamController<TrackMutedEvent>.broadcast();
+  final _connectionStateController = StreamController<String>.broadcast();
 
   /// Current room instance
   Room? get room => _room;
@@ -48,6 +49,8 @@ class VoiceService {
   Stream<Map<String, bool>> get onSpeakingChanged =>
       _speakingChangedController.stream;
   Stream<TrackMutedEvent> get onTrackMuted => _trackMutedController.stream;
+  Stream<String> get onConnectionStateChanged =>
+      _connectionStateController.stream;
 
   /// Connect to LiveKit room
   Future<void> connect({
@@ -211,16 +214,22 @@ class VoiceService {
     // Connection state events
     listener
       ..on<RoomConnectedEvent>((event) {
-        _logger.info('Room connected');
+        _logger.info('Room connected - emitting to stream');
+        _connectionStateController.add('connected');
       })
       ..on<RoomDisconnectedEvent>((event) {
-        _logger.info('Room disconnected: ${event.reason}');
+        _logger.error('❌ [VoiceService] Room disconnected: ${event.reason} - emitting to stream');
+        _logger.error('   - Reason: ${event.reason}');
+        _logger.error('   - Room name: ${_room?.name ?? "null"}');
+        _connectionStateController.add('disconnected');
       })
       ..on<RoomReconnectingEvent>((event) {
-        _logger.warn('Room reconnecting...');
+        _logger.warn('Room reconnecting... - emitting to stream');
+        _connectionStateController.add('reconnecting');
       })
       ..on<RoomReconnectedEvent>((event) {
-        _logger.info('Room reconnected');
+        _logger.info('Room reconnected - emitting to stream');
+        _connectionStateController.add('reconnected');
       })
       // Participant events
       ..on<ParticipantConnectedEvent>((event) {
@@ -275,6 +284,7 @@ class VoiceService {
     await _participantDisconnectedController.close();
     await _speakingChangedController.close();
     await _trackMutedController.close();
+    await _connectionStateController.close();
   }
 }
 

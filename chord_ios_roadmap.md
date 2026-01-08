@@ -349,6 +349,48 @@
 - **Audio Quality**: LiveKit adaptive streaming zaten aktif, manuel bitrate ayarı API'de mevcut değil (LiveKit otomatik yönetiyor)
 - **Background Audio**: Info.plist'te `UIBackgroundModes: audio` zaten mevcut, LiveKit client background audio'yu yönetiyor
 - **Bug Fix**: VoiceBar'daki `InkWell` Material widget hatası düzeltildi (`GestureDetector` ile değiştirildi)
+- **Connection State Monitoring**: Periyodik connection state check eklendi (2 saniyede bir), disconnect event handling iyileştirildi, otomatik reconnection eklendi
+- **Leave Channel Bug Fix**: `leaveVoiceChannel` sırasında disconnect event'lerinin state'i değiştirmesini engellemek için `_isLeavingChannel` flag eklendi
+
+**Bilinen Sorunlar**:
+- ⚠️ **WebRTC Connection Stability**: WebRTC peer connection başarısız oluyor (`onConnectionChangeFAILED`), ses gelmiyor. LiveKit room event'leri gelmiyor, manuel reconnection gerekli. Detaylı çözüm planı: `webrtc_audio_fix_&_friends_feature_209fe5ac.plan.md`
+
+---
+
+## 🏗️ FAZ 7.5: WEBRTC CONNECTION STABILITY & FRIENDS FEATURE
+
+**Durum**: 🔄 DEVAM EDİYOR
+**Plan**: `webrtc_audio_fix_&_friends_feature_209fe5ac.plan.md`
+**Süre**: ~1 hafta
+**Backend Bağımlılığı**: ✅ Friends API'leri hazır (FAZ 9.5 backend'de tamamlandı)
+
+**Not**:
+- FAZ 7 tamamlandı ancak WebRTC connection stability sorunu var
+- Ses gelmiyor: WebRTC peer connection başarısız oluyor ama LiveKit bunu algılamıyor
+- Friends özelliği backend'de hazır, frontend implementasyonu gerekiyor
+
+### Görevler
+
+- [ ] WebRTC connection state monitoring iyileştirmesi (`onConnectionChangeFAILED`/`DISCONNECTED` event handling)
+- [ ] LiveKit room options optimization (reconnection policy, audio track setup)
+- [ ] Android background audio iyileştirmesi (`FOREGROUND_SERVICE_TYPE_MICROPHONE` permission)
+- [ ] Friends repository oluşturma (API client methods)
+- [ ] Friends provider oluşturma (FriendsState, FriendsNotifier, SignalR events)
+- [ ] FriendsHome UI (Add Friend butonu, friends listesi, Online/All/Pending tabs)
+- [ ] Add Friend modal (username search, friend request gönderme)
+- [ ] FriendsSidebar güncellemesi (friends provider entegrasyonu)
+
+### Deliverables
+
+- ✅ WebRTC connection stability iyileştirildi
+- ✅ Ses geliyor ve stabil çalışıyor
+- ✅ Friends listesi görünüyor
+- ✅ Friend request gönderme/kabul etme çalışıyor
+- ✅ Add Friend butonu çalışıyor
+
+**Sorun Analizi**:
+- **WebRTC Connection Issue**: Log'larda `onConnectionChangeCONNECTED` görünüyor ama hemen ardından `onConnectionChangeFAILED` ve `onConnectionChangeDISCONNECTED` geliyor. LiveKit room event'leri (`RoomDisconnectedEvent`) tetiklenmiyor. Active speaker event'leri geliyor ama ses gelmiyor.
+- **Kök Neden**: WebRTC peer connection başarısız oluyor ama LiveKit bunu algılamıyor. Room hala "connected" durumunda kalıyor, manuel reconnection tetiklenmiyor.
 
 ---
 
@@ -476,7 +518,8 @@
 5. **FAZ 5.5**: Mentions & Notifications (Backend hazır ✅) - ✅ TAMAMLANDI
 6. **FAZ 6**: Voice channels + WebRTC temel - ✅ TAMAMLANDI
 7. **FAZ 7**: WebRTC Multi-User & Mute/Unmute - ✅ TAMAMLANDI
-8. **FAZ 8**: File upload (Backend FAZ 7'de yapılacak, iOS önce başlayabilir)
+8. **FAZ 7.5**: WebRTC Connection Stability & Friends Feature - 🔄 DEVAM EDİYOR (Plan: `webrtc_audio_fix_&_friends_feature_209fe5ac.plan.md`)
+9. **FAZ 8**: File upload (Backend FAZ 7'de yapılacak, iOS önce başlayabilir)
 8. **FAZ 9**: Push notifications (Backend FAZ 5.5'te mentions tamamlandı ✅)
 9. **FAZ 10-12**: Polish, testing, store
 

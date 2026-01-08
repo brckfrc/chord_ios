@@ -1,8 +1,9 @@
 import 'dart:async';
 import 'dart:math';
-import 'package:flutter/widgets.dart';
+import 'package:flutter/widgets.dart' hide ConnectionState;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
+import 'package:livekit_client/livekit_client.dart' as livekit;
 import '../models/voice/voice_participant_dto.dart';
 import '../services/voice/voice_service.dart';
 import '../services/network/connectivity_service.dart';
@@ -103,7 +104,10 @@ class VoiceNotifier extends StateNotifier<VoiceState> {
   StreamSubscription? _participantConnectedSub;
   StreamSubscription? _participantDisconnectedSub;
   StreamSubscription? _speakingChangedSub;
+  StreamSubscription? _connectionStateSub;
+  Timer? _connectionStateCheckTimer;
   bool _signalRListenersSetup = false;
+  bool _isLeavingChannel = false; // Flag to prevent state updates during leave
 
   VoiceNotifier(this._voiceService, this._networkService, this._ref)
       : super(VoiceState()) {
@@ -348,6 +352,9 @@ class VoiceNotifier extends StateNotifier<VoiceState> {
           _setupSignalRVoiceListeners();
         }
 
+        // Start periodic connection state check
+        _startConnectionStateCheck();
+
         // Fetch initial participant list
         await _fetchInitialParticipants(channelId);
 
@@ -406,6 +413,9 @@ class VoiceNotifier extends StateNotifier<VoiceState> {
         return;
       }
 
+      // Set flag to prevent connection state listener from interfering
+      _isLeavingChannel = true;
+
       final channelId = state.activeChannelId!;
       final authState = _ref.read(authProvider);
       final currentUserId = authState.user?.id;
@@ -446,13 +456,23 @@ class VoiceNotifier extends StateNotifier<VoiceState> {
         isSpeaking: false,
         participants: [], // Clear active channel participants
         error: null,
+        connectionQuality: ConnectionQuality.disconnected,
         // Keep participantsByChannel - don't clear it!
       );
+
+      // Stop periodic connection state check
+      _stopConnectionStateCheck();
+
+      // Reset flag after a short delay to allow any pending events to be ignored
+      Future.delayed(const Duration(milliseconds: 500), () {
+        _isLeavingChannel = false;
+      });
 
       _logger.info('Left voice channel (participantsByChannel preserved for other channels)');
     } catch (e) {
       _logger.error('Failed to leave voice channel: $e');
       state = state.copyWith(error: e.toString());
+      _isLeavingChannel = false; // Reset flag on error
     }
   }
 
@@ -730,6 +750,62 @@ class VoiceNotifier extends StateNotifier<VoiceState> {
         _logger.debug('Speaking state updated: ${speakingMap.keys.length} speakers, local user speaking: $localUserSpeaking');
       }
     });
+
+    // Listen to connection state changes
+    _connectionStateSub = _voiceService.onConnectionStateChanged.listen((stateString) {
+      _logger.debug('LiveKit connection state changed: $stateString');
+      
+      // Ignore connection state changes if we're in the process of leaving
+      if (_isLeavingChannel) {
+        _logger.debug('Ignoring connection state change during leave: $stateString');
+        return;
+      }
+      
+      if (stateString == 'disconnected') {
+        // Only update if we're actually in a channel and not already disconnected
+        if (state.activeChannelId != null && state.isConnected) {
+          _logger.warn('⚠️ [Connection State] Unexpected disconnect while in channel');
+          state = state.copyWith(
+            isConnected: false,
+            isConnecting: false,
+            connectionQuality: ConnectionQuality.disconnected,
+            error: 'Connection lost',
+          );
+          
+          // Attempt to reconnect if we're still in a channel
+          final channelId = state.activeChannelId;
+          if (channelId != null) {
+            _logger.info('🔄 [Connection State] Attempting to reconnect to channel: $channelId');
+            // Trigger reconnection after a short delay
+            Future.delayed(const Duration(seconds: 2), () {
+              if (state.activeChannelId == channelId && !state.isConnected) {
+                _logger.info('🔄 [Connection State] Reconnecting to voice channel...');
+                joinVoiceChannel(channelId);
+              }
+            });
+          }
+        }
+      } else if (stateString == 'reconnecting') {
+        // Only update if we're in a channel
+        if (state.activeChannelId != null) {
+          state = state.copyWith(
+            isConnecting: true,
+            connectionQuality: ConnectionQuality.poor,
+            error: 'Reconnecting...',
+          );
+        }
+      } else if (stateString == 'reconnected' || stateString == 'connected') {
+        // Only update if we're in a channel
+        if (state.activeChannelId != null) {
+          state = state.copyWith(
+            isConnected: true,
+            isConnecting: false,
+            connectionQuality: ConnectionQuality.good,
+            error: null,
+          );
+        }
+      }
+    });
     
     // Listen to room lifecycle events
     final room = _voiceService.room;
@@ -898,7 +974,109 @@ class VoiceNotifier extends StateNotifier<VoiceState> {
     _participantConnectedSub?.cancel();
     _participantDisconnectedSub?.cancel();
     _speakingChangedSub?.cancel();
+    _connectionStateSub?.cancel();
+    _stopConnectionStateCheck();
     super.dispose();
+  }
+
+  /// Start periodic connection state check (heartbeat)
+  void _startConnectionStateCheck() {
+    _stopConnectionStateCheck(); // Stop existing timer if any
+    
+    // Check every 2 seconds instead of 5 for faster detection
+    _connectionStateCheckTimer = Timer.periodic(const Duration(seconds: 2), (timer) {
+      if (state.activeChannelId == null) {
+        // Not in a channel, stop checking
+        _stopConnectionStateCheck();
+        return;
+      }
+
+      // Check actual connection state from LiveKit
+      final room = _voiceService.room;
+      if (room == null) {
+        // Room is null but we think we're connected - update state
+        if (state.isConnected) {
+          _logger.warn('⚠️ [Connection Check] Room is null but state says connected - updating state');
+          state = state.copyWith(
+            isConnected: false,
+            isConnecting: false,
+            connectionQuality: ConnectionQuality.disconnected,
+            error: 'Connection lost',
+          );
+        }
+        return;
+      }
+
+      // Check both connectionState and isConnected property
+      final connectionState = room.connectionState;
+      final isRoomConnected = _voiceService.isConnected;
+      
+      // Log detailed state for debugging
+      if (state.isConnected && (connectionState != livekit.ConnectionState.connected || !isRoomConnected)) {
+        _logger.warn('⚠️ [Connection Check] State mismatch detected!');
+        _logger.warn('   - Our state.isConnected: ${state.isConnected}');
+        _logger.warn('   - Room.connectionState: $connectionState');
+        _logger.warn('   - Room.isConnected: $isRoomConnected');
+      }
+
+      // Check if we have remote participants with audio tracks (indicates WebRTC is working)
+      final remoteParticipants = room.remoteParticipants.values.toList();
+      final hasActiveAudioTracks = remoteParticipants.any((p) {
+        return p.audioTrackPublications.any((trackPub) => 
+          trackPub.track != null
+        );
+      });
+      
+      // If we think we're connected but LiveKit says disconnected, update state
+      if (state.isConnected && (connectionState != livekit.ConnectionState.connected || !isRoomConnected)) {
+        _logger.warn('⚠️ [Connection Check] Connection lost detected - updating state');
+        
+        if (connectionState == livekit.ConnectionState.disconnected || !isRoomConnected) {
+          state = state.copyWith(
+            isConnected: false,
+            isConnecting: false,
+            connectionQuality: ConnectionQuality.disconnected,
+            error: 'Connection lost',
+          );
+          _logger.error('❌ [Connection Check] Marked as disconnected');
+          
+          // Attempt to reconnect
+          final channelId = state.activeChannelId;
+          if (channelId != null) {
+            _logger.info('🔄 [Connection Check] Attempting to reconnect to channel: $channelId');
+            Future.delayed(const Duration(seconds: 2), () {
+              if (state.activeChannelId == channelId && !state.isConnected) {
+                _logger.info('🔄 [Connection Check] Reconnecting to voice channel...');
+                joinVoiceChannel(channelId);
+              }
+            });
+          }
+        } else if (connectionState == livekit.ConnectionState.reconnecting) {
+          state = state.copyWith(
+            isConnecting: true,
+            connectionQuality: ConnectionQuality.poor,
+            error: 'Reconnecting...',
+          );
+          _logger.warn('🔄 [Connection Check] Marked as reconnecting');
+        }
+      } else if (state.isConnected && connectionState == livekit.ConnectionState.connected && isRoomConnected) {
+        // Check if WebRTC is actually working (we have remote participants but no audio tracks)
+        if (remoteParticipants.isNotEmpty && !hasActiveAudioTracks) {
+          _logger.warn('⚠️ [Connection Check] Room connected but no active audio tracks detected');
+          _logger.warn('   - Remote participants: ${remoteParticipants.length}');
+          _logger.warn('   - This may indicate WebRTC connection issues');
+          
+          // If this persists for multiple checks, trigger reconnection
+          // (We'll track this with a counter in the next iteration)
+        }
+      }
+    });
+  }
+
+  /// Stop periodic connection state check
+  void _stopConnectionStateCheck() {
+    _connectionStateCheckTimer?.cancel();
+    _connectionStateCheckTimer = null;
   }
 }
 

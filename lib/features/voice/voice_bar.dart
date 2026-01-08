@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../providers/voice_provider.dart';
+import '../../shared/widgets/app_toast.dart';
+import 'voice_room_view.dart';
 
 /// Voice connection status bar (bottom bar when in voice channel)
 class VoiceBar extends ConsumerWidget {
@@ -33,61 +36,91 @@ class VoiceBar extends ConsumerWidget {
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       child: Row(
         children: [
-          // Voice icon + channel name
+          // Voice icon + channel name (tappable to open room view)
           Expanded(
-            child: Row(
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    color: voiceState.isSpeaking
-                        ? const Color(0xFF23A559) // Green when speaking
-                        : const Color(0xFF35373C),
-                    shape: BoxShape.circle,
-                  ),
-                  child: const Icon(
-                    Icons.volume_up,
-                    size: 20,
-                    color: Colors.white,
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Text(
-                        voiceState.activeChannelName ?? 'Voice Channel',
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 14,
-                          fontWeight: FontWeight.w600,
+            child: GestureDetector(
+              onTap: voiceState.isConnected
+                  ? () {
+                      Navigator.of(context).push(
+                        MaterialPageRoute(
+                          builder: (context) => const VoiceRoomView(),
                         ),
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        voiceState.error != null
-                            ? 'Error: ${voiceState.error}'
-                            : voiceState.isConnecting
-                            ? 'Connecting...'
-                            : voiceState.isConnected
-                            ? 'Connected'
-                            : 'Disconnected',
-                        style: TextStyle(
-                          color: voiceState.error != null
-                              ? const Color(0xFFED4245)
-                              : voiceState.isConnected
-                              ? const Color(0xFF23A559)
-                              : Colors.grey,
-                          fontSize: 12,
-                        ),
-                      ),
-                    ],
+                      );
+                    }
+                  : null,
+              child: Row(
+                children: [
+                  AnimatedContainer(
+                    duration: const Duration(milliseconds: 300),
+                    curve: Curves.easeInOut,
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: voiceState.isSpeaking
+                          ? const Color(0xFF23A559) // Green when speaking
+                          : const Color(0xFF35373C),
+                      shape: BoxShape.circle,
+                      // Glow effect when speaking
+                      boxShadow: voiceState.isSpeaking
+                          ? [
+                              BoxShadow(
+                                color: const Color(0xFF23A559).withOpacity(0.6),
+                                blurRadius: 12,
+                                spreadRadius: 2,
+                              ),
+                            ]
+                          : null,
+                    ),
+                    child: const Icon(
+                      Icons.volume_up,
+                      size: 20,
+                      color: Colors.white,
+                    ),
                   ),
-                ),
-              ],
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Text(
+                          voiceState.activeChannelName ?? 'Voice Channel',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                          ),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        const SizedBox(height: 2),
+                        Row(
+                          children: [
+                            // Connection quality indicator
+                            if (voiceState.isConnected && voiceState.error == null)
+                              _buildQualityIndicator(voiceState.connectionQuality),
+                            Text(
+                              voiceState.error != null
+                                  ? 'Error: ${voiceState.error}'
+                                  : voiceState.isConnecting
+                                  ? 'Connecting...'
+                                  : voiceState.isConnected
+                                  ? 'Connected'
+                                  : 'Disconnected',
+                              style: TextStyle(
+                                color: voiceState.error != null
+                                    ? const Color(0xFFED4245)
+                                    : voiceState.isConnected
+                                    ? const Color(0xFF23A559)
+                                    : Colors.grey,
+                                fontSize: 12,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
 
@@ -100,7 +133,15 @@ class VoiceBar extends ConsumerWidget {
                 icon: voiceState.isMuted ? Icons.mic_off : Icons.mic,
                 isActive: !voiceState.isMuted,
                 onPressed: () {
+                  HapticFeedback.lightImpact();
+                  final wasMuted = voiceState.isMuted;
                   ref.read(voiceProvider.notifier).toggleMute();
+                  // Show toast notification
+                  if (wasMuted) {
+                    AppToast.showSuccess(context, 'Unmuted');
+                  } else {
+                    AppToast.show(context, 'Muted');
+                  }
                 },
                 tooltip: voiceState.isMuted ? 'Unmute' : 'Mute',
               ),
@@ -111,7 +152,15 @@ class VoiceBar extends ConsumerWidget {
                 icon: voiceState.isDeafened ? Icons.headset_off : Icons.headset,
                 isActive: !voiceState.isDeafened,
                 onPressed: () {
+                  HapticFeedback.mediumImpact();
+                  final wasDeafened = voiceState.isDeafened;
                   ref.read(voiceProvider.notifier).toggleDeafen();
+                  // Show toast notification
+                  if (wasDeafened) {
+                    AppToast.showSuccess(context, 'Undeafened');
+                  } else {
+                    AppToast.show(context, 'Deafened');
+                  }
                 },
                 tooltip: voiceState.isDeafened ? 'Undeafen' : 'Deafen',
               ),
@@ -122,6 +171,7 @@ class VoiceBar extends ConsumerWidget {
                 icon: Icons.call_end,
                 isActive: false,
                 onPressed: () async {
+                  HapticFeedback.heavyImpact();
                   await ref.read(voiceProvider.notifier).leaveVoiceChannel();
                 },
                 tooltip: 'Disconnect',
@@ -149,7 +199,9 @@ class VoiceBar extends ConsumerWidget {
         child: InkWell(
           onTap: onPressed,
           borderRadius: BorderRadius.circular(4),
-          child: Container(
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 200),
+            curve: Curves.easeInOut,
             padding: const EdgeInsets.all(8),
             decoration: BoxDecoration(
               color: isDanger
@@ -159,17 +211,51 @@ class VoiceBar extends ConsumerWidget {
                   : const Color(0xFF35373C),
               borderRadius: BorderRadius.circular(4),
             ),
-            child: Icon(
-              icon,
-              size: 20,
-              color: isDanger
-                  ? const Color(0xFFED4245)
-                  : isActive
-                  ? const Color(0xFF23A559)
-                  : Colors.grey,
+            child: AnimatedDefaultTextStyle(
+              duration: const Duration(milliseconds: 200),
+              curve: Curves.easeInOut,
+              style: TextStyle(
+                color: isDanger
+                    ? const Color(0xFFED4245)
+                    : isActive
+                    ? const Color(0xFF23A559)
+                    : Colors.grey,
+              ),
+              child: Icon(
+                icon,
+                size: 20,
+              ),
             ),
           ),
         ),
+      ),
+    );
+  }
+
+  /// Build connection quality indicator widget
+  Widget _buildQualityIndicator(dynamic quality) {
+    Color qualityColor;
+    switch (quality.toString()) {
+      case 'ConnectionQuality.excellent':
+        qualityColor = const Color(0xFF23A559); // Green
+        break;
+      case 'ConnectionQuality.good':
+        qualityColor = const Color(0xFF5865F2); // Blue
+        break;
+      case 'ConnectionQuality.poor':
+        qualityColor = const Color(0xFFFAA61A); // Orange
+        break;
+      default:
+        qualityColor = Colors.grey;
+    }
+    
+    return Container(
+      width: 6,
+      height: 6,
+      margin: const EdgeInsets.only(right: 6),
+      decoration: BoxDecoration(
+        color: qualityColor,
+        shape: BoxShape.circle,
       ),
     );
   }

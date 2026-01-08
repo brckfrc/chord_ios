@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
@@ -12,6 +13,14 @@ import 'channel_provider.dart';
 import 'guild_provider.dart';
 import '../models/guild/channel_type.dart';
 
+/// Connection quality levels
+enum ConnectionQuality {
+  excellent,
+  good,
+  poor,
+  disconnected,
+}
+
 /// Voice channel state
 class VoiceState {
   final String? activeChannelId;
@@ -23,6 +32,7 @@ class VoiceState {
   final bool isSpeaking;
   final List<VoiceParticipantDto> participants; // Keep for backward compatibility
   final Map<String, List<VoiceParticipantDto>> participantsByChannel; // Multi-channel participants
+  final ConnectionQuality connectionQuality; // Network connection quality
   final String? error;
 
   VoiceState({
@@ -35,6 +45,7 @@ class VoiceState {
     this.isSpeaking = false,
     this.participants = const [],
     this.participantsByChannel = const {},
+    this.connectionQuality = ConnectionQuality.disconnected,
     this.error,
   });
 
@@ -48,6 +59,7 @@ class VoiceState {
     bool? isSpeaking,
     List<VoiceParticipantDto>? participants,
     Map<String, List<VoiceParticipantDto>>? participantsByChannel,
+    ConnectionQuality? connectionQuality,
     String? error,
   }) {
     return VoiceState(
@@ -60,6 +72,7 @@ class VoiceState {
       isSpeaking: isSpeaking ?? this.isSpeaking,
       participants: participants ?? this.participants,
       participantsByChannel: participantsByChannel ?? this.participantsByChannel,
+      connectionQuality: connectionQuality ?? this.connectionQuality,
       error: error,
     );
   }
@@ -185,6 +198,20 @@ class VoiceNotifier extends StateNotifier<VoiceState> {
     }
   }
 
+  /// Parse connection quality string to enum
+  ConnectionQuality _parseConnectionQuality(String quality) {
+    switch (quality.toLowerCase()) {
+      case 'excellent':
+        return ConnectionQuality.excellent;
+      case 'good':
+        return ConnectionQuality.good;
+      case 'poor':
+        return ConnectionQuality.poor;
+      default:
+        return ConnectionQuality.disconnected;
+    }
+  }
+
   /// Setup channel list watcher to fetch participants when voice channels change
   void _setupChannelListWatcher() {
     // Watch channel provider and fetch participants when voice channels are loaded
@@ -206,10 +233,10 @@ class VoiceNotifier extends StateNotifier<VoiceState> {
     }
   }
 
-  /// Join voice channel with retry logic
+  /// Join voice channel with improved retry logic
   Future<void> joinVoiceChannel(String channelId) async {
-    const maxRetries = 3;
-    const retryDelay = Duration(seconds: 2);
+    const maxRetries = 5;
+    const baseDelayMs = 2000; // 2 seconds base delay
     
     for (int attempt = 1; attempt <= maxRetries; attempt++) {
       try {
@@ -218,12 +245,18 @@ class VoiceNotifier extends StateNotifier<VoiceState> {
         // Check network first
         if (!await _networkService.isConnected()) {
           if (attempt < maxRetries) {
-            _logger.warn('No network connection, retrying in ${retryDelay.inSeconds}s...');
-            await Future.delayed(retryDelay);
+            // Exponential backoff: baseDelay * (2 ^ (attempt - 1))
+            final delayMs = (baseDelayMs * pow(2, attempt - 1)).toInt();
+            final delay = Duration(milliseconds: delayMs);
+            _logger.warn('No network connection, retrying in ${delay.inSeconds}s... (reason: network)');
+            await Future.delayed(delay);
             continue;
           }
-          _logger.error('Cannot join voice: No network connection');
-          state = state.copyWith(error: 'No network connection');
+          _logger.error('Cannot join voice: No network connection after $maxRetries attempts');
+          state = state.copyWith(
+            isConnecting: false,
+            error: 'No network connection',
+          );
           return;
         }
 
@@ -259,37 +292,55 @@ class VoiceNotifier extends StateNotifier<VoiceState> {
 
         // Get LiveKit token from SignalR
         _logger.debug('Requesting LiveKit token via SignalR');
-        final response = await _ref.read(chatHubProvider.notifier).invoke(
-              'JoinVoiceChannel',
-              args: [channelId],
-            );
+        String? retryReason;
+        try {
+          final response = await _ref.read(chatHubProvider.notifier).invoke(
+                'JoinVoiceChannel',
+                args: [channelId],
+              );
 
-        if (response == null) {
-          throw Exception('Failed to get voice token: No response');
+          if (response == null) {
+            retryReason = 'token';
+            throw Exception('Failed to get voice token: No response');
+          }
+
+          final liveKitToken = response['liveKitToken'] as String?;
+          final liveKitUrl = response['liveKitUrl'] as String?;
+          final roomName = response['roomName'] as String?;
+
+          if (liveKitToken == null || liveKitUrl == null || roomName == null) {
+            retryReason = 'token';
+            throw Exception('Invalid voice token response');
+          }
+
+          _logger.debug('LiveKit token received, connecting to room');
+
+          // Connect to LiveKit
+          retryReason = 'livekit';
+          await _voiceService.connect(
+            url: liveKitUrl,
+            token: liveKitToken,
+            roomName: roomName,
+          );
+        } catch (e) {
+          // Re-throw token errors
+          if (retryReason == 'token') {
+            rethrow;
+          }
+          // Continue to LiveKit connection error handling
+          throw e;
         }
 
-        final liveKitToken = response['liveKitToken'] as String?;
-        final liveKitUrl = response['liveKitUrl'] as String?;
-        final roomName = response['roomName'] as String?;
-
-        if (liveKitToken == null || liveKitUrl == null || roomName == null) {
-          throw Exception('Invalid voice token response');
-        }
-
-        _logger.debug('LiveKit token received, connecting to room');
-
-        // Connect to LiveKit
-        await _voiceService.connect(
-          url: liveKitUrl,
-          token: liveKitToken,
-          roomName: roomName,
-        );
-
+        // Update connection quality
+        final qualityString = _voiceService.getConnectionQuality();
+        final quality = _parseConnectionQuality(qualityString);
+        
         state = state.copyWith(
           isConnected: true,
           isConnecting: false,
           isMuted: false,
           isDeafened: false,
+          connectionQuality: quality,
         );
 
         // Ensure SignalR listeners are setup
@@ -306,18 +357,39 @@ class VoiceNotifier extends StateNotifier<VoiceState> {
         _logger.info('Successfully joined voice channel: $channelId');
         return; // Success, exit retry loop
       } catch (e) {
-        _logger.error('Failed to join voice channel (attempt $attempt/$maxRetries): $e');
+        // Determine retry reason from error type
+        String errorReason = 'unknown';
+        final errorString = e.toString().toLowerCase();
+        if (errorString.contains('network') || errorString.contains('connection')) {
+          errorReason = 'network';
+        } else if (errorString.contains('token') || errorString.contains('auth')) {
+          errorReason = 'token';
+        } else if (errorString.contains('livekit') || errorString.contains('room')) {
+          errorReason = 'livekit';
+        }
+        
+        _logger.error('Failed to join voice channel (attempt $attempt/$maxRetries, reason: $errorReason): $e');
         
         if (attempt < maxRetries) {
-          // Exponential backoff: 2s, 4s, 8s
-          final delay = Duration(seconds: retryDelay.inSeconds * attempt);
-          _logger.info('Retrying in ${delay.inSeconds}s...');
+          // Exponential backoff: baseDelay * (2 ^ (attempt - 1))
+          // Results in: 2s, 4s, 8s, 16s, 32s
+          final delayMs = (baseDelayMs * pow(2, attempt - 1)).toInt();
+          final delay = Duration(milliseconds: delayMs);
+          _logger.info('Retrying in ${delay.inSeconds}s... (reason: $errorReason)');
+          
+          // Update state to show reconnecting
+          state = state.copyWith(
+            isConnecting: true,
+            error: 'Reconnecting... (attempt $attempt/$maxRetries)',
+          );
+          
           await Future.delayed(delay);
         } else {
           // Final attempt failed
+          _logger.error('Failed to join voice channel after $maxRetries attempts');
           state = state.copyWith(
             isConnecting: false,
-            error: e.toString(),
+            error: 'Failed to connect: ${e.toString()}',
           );
         }
       }
@@ -335,6 +407,24 @@ class VoiceNotifier extends StateNotifier<VoiceState> {
       }
 
       final channelId = state.activeChannelId!;
+      final authState = _ref.read(authProvider);
+      final currentUserId = authState.user?.id;
+
+      // Remove current user from participant list (if exists)
+      if (currentUserId != null) {
+        final updatedMap = Map<String, List<VoiceParticipantDto>>.from(state.participantsByChannel);
+        final channelParticipants = List<VoiceParticipantDto>.from(updatedMap[channelId] ?? []);
+        channelParticipants.removeWhere((p) => p.userId == currentUserId);
+        updatedMap[channelId] = channelParticipants;
+        
+        // Update state with cleaned participant list (keep other channels' participants)
+        state = state.copyWith(
+          participantsByChannel: updatedMap,
+          participants: [], // Clear active channel participants
+        );
+        
+        _logger.info('Removed current user from participant list (channel: $channelId, remaining: ${channelParticipants.length})');
+      }
 
       // Notify SignalR
       await _ref.read(chatHubProvider.notifier).invoke(
@@ -345,9 +435,21 @@ class VoiceNotifier extends StateNotifier<VoiceState> {
       // Disconnect from LiveKit
       await _voiceService.disconnect();
 
-      state = VoiceState(); // Reset to default state (activeChannelId and activeChannelName will be null)
+      // Reset only user's own connection state, keep participantsByChannel for other channels
+      state = state.copyWith(
+        activeChannelId: null,
+        activeChannelName: null,
+        isConnected: false,
+        isConnecting: false,
+        isMuted: false,
+        isDeafened: false,
+        isSpeaking: false,
+        participants: [], // Clear active channel participants
+        error: null,
+        // Keep participantsByChannel - don't clear it!
+      );
 
-      _logger.info('Left voice channel');
+      _logger.info('Left voice channel (participantsByChannel preserved for other channels)');
     } catch (e) {
       _logger.error('Failed to leave voice channel: $e');
       state = state.copyWith(error: e.toString());
@@ -548,8 +650,13 @@ class VoiceNotifier extends StateNotifier<VoiceState> {
         // Note: Toast notifications should be shown in UI layer with context
       } else if (!result.contains(ConnectivityResult.none) && state.error != null) {
         _logger.info('Network restored');
-        // Clear error if network is back
-        state = state.copyWith(error: null);
+        // Clear error if network is back and update quality
+        final qualityString = _voiceService.getConnectionQuality();
+        final quality = _parseConnectionQuality(qualityString);
+        state = state.copyWith(
+          error: null,
+          connectionQuality: quality,
+        );
         
         // Auto-reconnect if we were in a voice channel
         if (state.activeChannelId != null && !state.isConnected) {

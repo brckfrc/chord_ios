@@ -52,30 +52,47 @@ class VoiceChannelUsers extends ConsumerWidget {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 2),
       child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
+        duration: const Duration(milliseconds: 300),
         curve: Curves.easeInOut,
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(4),
-          // Speaking indicator - green background when speaking
+          // Speaking indicator - green background when speaking with pulse effect
           color: participant.isSpeaking
-              ? const Color(0xFF23A559).withOpacity(0.2)
+              ? const Color(0xFF23A559).withOpacity(0.25)
               : Colors.transparent,
+          // Subtle border when speaking
+          border: participant.isSpeaking
+              ? Border.all(
+                  color: const Color(0xFF23A559).withOpacity(0.5),
+                  width: 1,
+                )
+              : null,
         ),
         child: Row(
           children: [
-            // Avatar (smaller, Discord-like)
-            AnimatedContainer(
-              duration: const Duration(milliseconds: 200),
-              curve: Curves.easeInOut,
-              width: 26,
-              height: 26,
-              decoration: BoxDecoration(
-                color: participant.isSpeaking
-                    ? const Color(0xFF23A559)
-                    : const Color(0xFF5865F2),
-                shape: BoxShape.circle,
-              ),
+          // Avatar (smaller, Discord-like)
+          AnimatedContainer(
+            duration: const Duration(milliseconds: 300),
+            curve: Curves.easeInOut,
+            width: 26,
+            height: 26,
+            decoration: BoxDecoration(
+              color: participant.isSpeaking
+                  ? const Color(0xFF23A559)
+                  : const Color(0xFF5865F2),
+              shape: BoxShape.circle,
+              // Glow effect when speaking
+              boxShadow: participant.isSpeaking
+                  ? [
+                      BoxShadow(
+                        color: const Color(0xFF23A559).withOpacity(0.5),
+                        blurRadius: 8,
+                        spreadRadius: 1,
+                      ),
+                    ]
+                  : null,
+            ),
               alignment: Alignment.center,
               child: Text(
                 participant.username.isNotEmpty
@@ -98,18 +115,18 @@ class VoiceChannelUsers extends ConsumerWidget {
                   Row(
                     children: [
                       Flexible(
-                        child: AnimatedDefaultTextStyle(
-                          duration: const Duration(milliseconds: 200),
-                          curve: Curves.easeInOut,
-                          style: TextStyle(
-                            color: participant.isSpeaking
-                                ? const Color(0xFF23A559)
-                                : Colors.white.withOpacity(0.7),
-                            fontSize: 15,
-                            fontWeight: participant.isSpeaking
-                                ? FontWeight.w600
-                                : FontWeight.normal,
-                          ),
+                      child: AnimatedDefaultTextStyle(
+                        duration: const Duration(milliseconds: 300),
+                        curve: Curves.easeInOut,
+                        style: TextStyle(
+                          color: participant.isSpeaking
+                              ? const Color(0xFF23A559)
+                              : Colors.white.withOpacity(0.7),
+                          fontSize: 15,
+                          fontWeight: participant.isSpeaking
+                              ? FontWeight.w600
+                              : FontWeight.normal,
+                        ),
                           child: Text(
                             participant.displayName ?? participant.username,
                             overflow: TextOverflow.ellipsis,

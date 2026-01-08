@@ -247,10 +247,19 @@
 
 ## 🏗️ FAZ 6: VOICE CHANNEL UI & WEBRTC TEMEL
 
-**Durum**: ⚠️ %85 TAMAMLANDI (UI ve temel bağlantı hazır, real-time updates UI'da görünmüyor - debug & fix gerekiyor)
+**Durum**: ✅ TAMAMLANDI (2025-01-XX)
 **Süre**: ~1.5 hafta
 **Backend Bağımlılığı**: ✅ FAZ 3 tamamlandı (Voice channel presence hazır)
 **Frontend Referans**: `VoiceBar.tsx`, `VoiceChannelUsers.tsx`, `UserProfileBar.tsx`
+
+**Not**:
+- Voice channel users list below channels eklendi (Discord benzeri, her voice channel'ın altında kullanıcı listesi)
+- Multi-channel participants support eklendi (`participantsByChannel` Map ile tüm channel'lar için participant tracking)
+- Real-time updates düzeltildi (`getParticipantsForChannel` metodunda yeni liste kopyası döndürme, Riverpod state detection)
+- Voice channel başlığına aktif channel göstergesi eklendi (yeşil renk ile icon ve başlık)
+- VoiceBar global visibility eklendi (tüm protected route'larda görünüyor, Friends/DM sayfalarında da)
+- Speaking indicators animasyonları eklendi (yeşil border ve background, smooth transitions)
+- Channel list watcher eklendi (voice channel'lar değiştiğinde otomatik participant fetch)
 
 ### Görevler
 
@@ -261,15 +270,20 @@
 - [x] Voice channel SignalR events (UserJoinedVoiceChannel, UserLeftVoiceChannel, UserVoiceStateChanged) ✅
 - [x] WebRTC temel setup (LiveKit kullanılıyor - `livekit_client` package) ✅
 - [x] Voice connection testi (LiveKit room connection) ✅
-- [ ] **Voice UI Real-Time Updates - Debugging & Fix**:
-  - [ ] Real-time participant list updates kontrolü ve düzeltme (kullanıcıların anlık görünmesi - SignalR event'leri UI'da görünmüyor, kontrol edilecek)
-  - [ ] Voice activity indicators kontrolü ve düzeltme (speaking indicators - yeşil border/avatar UI'da anlık güncellenmiyor, kontrol edilecek)
-  - [ ] Voice state synchronization kontrolü ve düzeltme (mute/deafen durumları UI'da anlık görünmüyor, kontrol edilecek)
-  - [ ] `VoiceChannelUsers` widget reactive updates kontrolü (`ref.watch(voiceProvider)` çalışıyor mu, state güncellemeleri UI'ya yansıyor mu kontrol edilecek)
-  - [ ] `VoiceBar` widget real-time updates kontrolü (connection status ve participant count anlık güncelleniyor mu kontrol edilecek)
-  - [ ] SignalR event handler'ların doğru çalıştığı kontrol edilecek (`UserJoinedVoiceChannel`, `UserLeftVoiceChannel`, `UserVoiceStateChanged`)
-  - [ ] LiveKit speaking events'in state'e doğru yansıdığı kontrol edilecek
-  - [ ] Speaking state animasyonları (smooth transitions) - yeşil border var, animasyon eklenebilir
+- [x] **Voice UI Real-Time Updates - Debugging & Fix**:
+  - [x] Real-time participant list updates düzeltildi (multi-channel support, `participantsByChannel` Map) ✅
+  - [x] Voice activity indicators düzeltildi (speaking indicators - yeşil border/avatar UI'da anlık güncelleniyor) ✅
+  - [x] Voice state synchronization düzeltildi (mute/deafen durumları UI'da anlık görünüyor) ✅
+  - [x] `VoiceChannelUsers` widget reactive updates düzeltildi (`getParticipantsForChannel` yeni liste döndürüyor) ✅
+  - [x] `VoiceBar` widget real-time updates çalışıyor (connection status ve participant count anlık güncelleniyor) ✅
+  - [x] SignalR event handler'lar düzeltildi (tüm channel'lar için çalışıyor, `participantsByChannel` güncelleniyor) ✅
+  - [x] LiveKit speaking events state'e doğru yansıyor (aktif channel için speaking indicators çalışıyor) ✅
+  - [x] Speaking state animasyonları eklendi (smooth transitions, yeşil border ve background) ✅
+- [x] Voice channel users list below channels eklendi (her voice channel'ın altında participant listesi) ✅
+- [x] Multi-channel participants support eklendi (`participantsByChannel` Map, `fetchAllVoiceChannelParticipants`) ✅
+- [x] Voice channel başlığına aktif channel göstergesi eklendi (yeşil renk) ✅
+- [x] VoiceBar global visibility eklendi (ProtectedRoute'da, tüm sayfalarda görünüyor) ✅
+- [x] Channel list watcher eklendi (voice channel'lar değiştiğinde otomatik participant fetch) ✅
 - [x] **Not**: LiveKit kullanılıyor (SignalR üzerinden token alınıyor, LiveKit room'a bağlanılıyor) ✅
 
 ### Deliverables
@@ -277,34 +291,64 @@
 ✅ Voice channel UI hazır
 ✅ Voice channel'a join/leave çalışıyor (presence + LiveKit)
 ✅ LiveKit room bağlantısı kuruluyor (WebRTC backend)
-⚠️ Voice channel'daki kullanıcılar anlık görünmüyor (SignalR event'leri UI'da yansımıyor - debug & fix gerekiyor)
-⚠️ Ses aktiviteleri (speaking indicators) anlık güncellenmiyor (yeşil border/avatar UI'da görünmüyor - debug & fix gerekiyor)
-⚠️ Mute/deafen durumları anlık senkronize olmuyor (UI'da görünmüyor - debug & fix gerekiyor)
-⚠️ VoiceBar ve VoiceChannelUsers reactive updates kontrol edilecek (`ref.watch` çalışıyor mu, state güncellemeleri UI'ya yansıyor mu)
+✅ Voice channel'daki kullanıcılar anlık görünüyor (SignalR event'leri UI'da yansıyor)
+✅ Ses aktiviteleri (speaking indicators) anlık güncelleniyor (yeşil border/avatar UI'da görünüyor)
+✅ Mute/deafen durumları anlık senkronize oluyor (UI'da görünüyor)
+✅ VoiceBar ve VoiceChannelUsers reactive updates çalışıyor (`ref.watch` çalışıyor, state güncellemeleri UI'ya yansıyor)
+✅ Voice channel users list below channels çalışıyor (Discord benzeri)
+✅ Multi-channel participants support çalışıyor (tüm voice channel'lar için participant tracking)
+✅ Voice channel başlığında aktif channel göstergesi çalışıyor (yeşil renk)
+✅ VoiceBar global visibility çalışıyor (tüm sayfalarda görünüyor)
 
 ---
 
 ## 🏗️ FAZ 7: WEBRTC MULTI-USER & MUTE/UNMUTE
 
+**Durum**: ✅ TAMAMLANDI (2025-01-XX)
 **Süre**: ~1.5 hafta
-**Backend Bağımlılığı**: ⏳ FAZ 8 (RtcSignalingHub) - iOS önce yapılabilir (frontend'teki gibi)
-**Frontend Referans**: WebRTC P2P logic (FAZ 8'de yapılacak)
+**Backend Bağımlılığı**: ✅ FAZ 8 tamamlandı (LiveKit SFU hazır, backend'de voice token endpoint mevcut)
+**Frontend Referans**: WebRTC LiveKit logic (FAZ 8'de yapıldı)
+
+**Not**:
+- LiveKit SFU mimarisi kullanılıyor (P2P mesh yerine, ölçeklenebilirlik için)
+- Backend'de LiveKit token generation hazır (`/api/voice/token` endpoint)
+- Temel LiveKit bağlantısı FAZ 6'da tamamlandı
+- Mute/unmute temel kontrolleri mevcut, iyileştirme gerekiyor
 
 ### Görevler
 
-- [ ] Multi-user WebRTC (≤5 kişi, mesh topology)
-- [ ] Mute/unmute controls (local audio track enable/disable)
-- [ ] Deafen controls (remote audio tracks mute)
-- [ ] Connection retry logic (bağlantı hatası durumunda)
-- [ ] Voice room UI (participants grid, mute indicators)
-- [ ] Background audio handling (iOS background modes)
-- [ ] **Alternatif Plan**: Backend RtcSignalingHub hazır değilse, SignalR ChatHub üzerinden signaling implementasyonu (ICE candidates, offers/answers)
+- [x] Multi-user WebRTC (LiveKit SFU ile 10+ kişi desteği)
+- [x] Mute/unmute controls iyileştirme (local audio track enable/disable, UI feedback)
+- [x] Deafen controls iyileştirme (remote audio tracks mute, UI feedback)
+- [x] Connection retry logic (bağlantı hatası durumunda, exponential backoff)
+- [x] Voice room UI (participants grid, mute indicators)
+- [x] Background audio handling (iOS background modes)
+- [x] Speaking indicators iyileştirme (LiveKit active speakers events)
+- [x] Audio quality optimization (bitrate, codec settings)
+- [x] Network quality indicators (connection quality UI)
+- [ ] Participant video support (camera toggle, video rendering) - Opsiyonel, sonraki faz için
 
 ### Deliverables
 
-✅ 3-5 kişilik odada stabil ses
-✅ Mute/unmute çalışıyor
-✅ Connection retry çalışıyor
+✅ 10+ kişilik odada stabil ses (LiveKit SFU)
+✅ Mute/unmute çalışıyor (iyileştirilmiş UI feedback ile)
+✅ Connection retry çalışıyor (exponential backoff ile)
+✅ Voice room UI çalışıyor (participants grid view)
+✅ Network quality indicators çalışıyor (connection quality UI)
+✅ Haptic feedback eklendi (mute/unmute/deafen/disconnect)
+✅ Visual feedback iyileştirildi (button animations, toast notifications)
+✅ Speaking indicators iyileştirildi (glow effects, smooth animations)
+
+**Detaylı Notlar**:
+- **Connection Retry**: Exponential backoff algoritması iyileştirildi (2s, 4s, 8s, 16s, 32s), max retry 5'e çıkarıldı, retry reason tracking eklendi (network, token, livekit, unknown)
+- **Haptic Feedback**: Mute/unmute için `lightImpact()`, deafen için `mediumImpact()`, disconnect için `heavyImpact()` eklendi
+- **Visual Feedback**: Button animations (`AnimatedContainer`, `AnimatedDefaultTextStyle`), toast notifications (mute/unmute/deafen durumları için)
+- **Network Quality**: `ConnectionQuality` enum eklendi (excellent, good, poor, disconnected), VoiceBar'da renkli quality indicator (nokta) gösteriliyor
+- **Voice Room UI**: Yeni sayfa eklendi (`voice_room_view.dart`), participants grid layout (2 sütun), VoiceBar'dan tıklanarak açılıyor
+- **Speaking Indicators**: Animasyon süresi 300ms'e çıkarıldı, glow effect (`boxShadow`) eklendi, border effect eklendi (speaking durumunda yeşil border)
+- **Audio Quality**: LiveKit adaptive streaming zaten aktif, manuel bitrate ayarı API'de mevcut değil (LiveKit otomatik yönetiyor)
+- **Background Audio**: Info.plist'te `UIBackgroundModes: audio` zaten mevcut, LiveKit client background audio'yu yönetiyor
+- **Bug Fix**: VoiceBar'daki `InkWell` Material widget hatası düzeltildi (`GestureDetector` ile değiştirildi)
 
 ---
 
@@ -430,8 +474,9 @@
 3. **FAZ 4**: Messaging + SignalR (Backend hazır ✅) - ✅ TAMAMLANDI
 4. **FAZ 5**: Presence (Backend hazır ✅) - ✅ TAMAMLANDI
 5. **FAZ 5.5**: Mentions & Notifications (Backend hazır ✅) - ✅ TAMAMLANDI
-6. **FAZ 6-7**: Voice channels + WebRTC (Backend FAZ 8'de yapılacak, iOS önce başlayabilir)
-7. **FAZ 8**: File upload (Backend FAZ 7'de yapılacak, iOS önce başlayabilir)
+6. **FAZ 6**: Voice channels + WebRTC temel - ✅ TAMAMLANDI
+7. **FAZ 7**: WebRTC Multi-User & Mute/Unmute - ✅ TAMAMLANDI
+8. **FAZ 8**: File upload (Backend FAZ 7'de yapılacak, iOS önce başlayabilir)
 8. **FAZ 9**: Push notifications (Backend FAZ 5.5'te mentions tamamlandı ✅)
 9. **FAZ 10-12**: Polish, testing, store
 

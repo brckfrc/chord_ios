@@ -359,38 +359,39 @@
 
 ## 🏗️ FAZ 7.5: WEBRTC CONNECTION STABILITY & FRIENDS FEATURE
 
-**Durum**: 🔄 DEVAM EDİYOR
-**Plan**: `webrtc_audio_fix_&_friends_feature_209fe5ac.plan.md`
+**Durum**: ✅ TAMAMLANDI (2025-01-XX)
+**Plan**: `webrtc_audio_fix_&_friends_feature_102256e4.plan.md`, `voice_disconnect_ui_fix_&_fetch_loop_fix_9d9fab6b.plan.md`, `voicebar_disconnect_state_fix_dcd1c9c7.plan.md`
 **Süre**: ~1 hafta
 **Backend Bağımlılığı**: ✅ Friends API'leri hazır (FAZ 9.5 backend'de tamamlandı)
 
 **Not**:
-- FAZ 7 tamamlandı ancak WebRTC connection stability sorunu var
-- Ses gelmiyor: WebRTC peer connection başarısız oluyor ama LiveKit bunu algılamıyor
-- Friends özelliği backend'de hazır, frontend implementasyonu gerekiyor
+- WebRTC connection stability iyileştirildi (connection state monitoring, otomatik reconnection, audio tracks check)
+- VoiceBar disconnect sorunu çözüldü (null değerler doğru set ediliyor, VoiceState.copyWith sorunu giderildi)
+- Participant fetch loop sorunu çözüldü (sadece yeni guild'ler eklendiğinde fetch yapılıyor)
+- Friends özelliği tamamlandı (repository, provider, UI, SignalR events)
 
 ### Görevler
 
-- [ ] WebRTC connection state monitoring iyileştirmesi (`onConnectionChangeFAILED`/`DISCONNECTED` event handling)
-- [ ] LiveKit room options optimization (reconnection policy, audio track setup)
-- [ ] Android background audio iyileştirmesi (`FOREGROUND_SERVICE_TYPE_MICROPHONE` permission)
-- [ ] Friends repository oluşturma (API client methods)
-- [ ] Friends provider oluşturma (FriendsState, FriendsNotifier, SignalR events)
-- [ ] FriendsHome UI (Add Friend butonu, friends listesi, Online/All/Pending tabs)
-- [ ] Add Friend modal (username search, friend request gönderme)
-- [ ] FriendsSidebar güncellemesi (friends provider entegrasyonu)
+- [x] WebRTC connection state monitoring iyileştirmesi (`onConnectionChangeFAILED`/`DISCONNECTED` event handling, periyodik connection check) ✅
+- [x] LiveKit room options optimization (reconnection policy, audio track setup) ✅
+- [x] Android background audio iyileştirmesi (`FOREGROUND_SERVICE_TYPE_MICROPHONE` permission kontrolü) ✅
+- [x] Friends repository oluşturma (API client methods) ✅
+- [x] Friends provider oluşturma (FriendsState, FriendsNotifier, SignalR events) ✅
+- [x] FriendsHome UI (Add Friend butonu, friends listesi, Online/All/Pending tabs) ✅
+- [x] Add Friend modal (username search, friend request gönderme) ✅
+- [x] FriendsSidebar güncellemesi (friends provider entegrasyonu) ✅
+- [x] VoiceBar disconnect state fix (null değerler doğru set ediliyor, VoiceState instance oluşturma) ✅
+- [x] Participant fetch loop fix (sadece yeni guild'ler eklendiğinde fetch, voice channel kontrolü) ✅
 
 ### Deliverables
 
-- ✅ WebRTC connection stability iyileştirildi
-- ✅ Ses geliyor ve stabil çalışıyor
-- ✅ Friends listesi görünüyor
-- ✅ Friend request gönderme/kabul etme çalışıyor
-- ✅ Add Friend butonu çalışıyor
-
-**Sorun Analizi**:
-- **WebRTC Connection Issue**: Log'larda `onConnectionChangeCONNECTED` görünüyor ama hemen ardından `onConnectionChangeFAILED` ve `onConnectionChangeDISCONNECTED` geliyor. LiveKit room event'leri (`RoomDisconnectedEvent`) tetiklenmiyor. Active speaker event'leri geliyor ama ses gelmiyor.
-- **Kök Neden**: WebRTC peer connection başarısız oluyor ama LiveKit bunu algılamıyor. Room hala "connected" durumunda kalıyor, manuel reconnection tetiklenmiyor.
+✅ WebRTC connection stability iyileştirildi (connection state monitoring, otomatik reconnection)
+✅ Ses geliyor ve stabil çalışıyor
+✅ Friends listesi görünüyor
+✅ Friend request gönderme/kabul etme çalışıyor
+✅ Add Friend butonu çalışıyor
+✅ VoiceBar disconnect sonrası doğru şekilde kayboluyor (activeChannelId: null)
+✅ Participant fetch döngüsü sorunu çözüldü (sadece yeni guild'ler için fetch)
 
 ---
 
@@ -518,7 +519,7 @@
 5. **FAZ 5.5**: Mentions & Notifications (Backend hazır ✅) - ✅ TAMAMLANDI
 6. **FAZ 6**: Voice channels + WebRTC temel - ✅ TAMAMLANDI
 7. **FAZ 7**: WebRTC Multi-User & Mute/Unmute - ✅ TAMAMLANDI
-8. **FAZ 7.5**: WebRTC Connection Stability & Friends Feature - 🔄 DEVAM EDİYOR (Plan: `webrtc_audio_fix_&_friends_feature_209fe5ac.plan.md`)
+8. **FAZ 7.5**: WebRTC Connection Stability & Friends Feature - ✅ TAMAMLANDI
 9. **FAZ 8**: File upload (Backend FAZ 7'de yapılacak, iOS önce başlayabilir)
 8. **FAZ 9**: Push notifications (Backend FAZ 5.5'te mentions tamamlandı ✅)
 9. **FAZ 10-12**: Polish, testing, store

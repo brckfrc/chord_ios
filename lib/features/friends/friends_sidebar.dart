@@ -2,7 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../providers/dm_provider.dart';
+import '../../providers/friends_provider.dart';
+import '../../providers/auth_provider.dart';
 import '../../models/dm/dm_dto.dart';
+import '../../models/friends/friendship_dto.dart';
 import '../../models/auth/user_status.dart';
 import '../../shared/widgets/app_loading.dart';
 
@@ -20,20 +23,23 @@ class _FriendsSidebarState extends ConsumerState<FriendsSidebar> {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       ref.read(dmProvider.notifier).fetchDMs();
+      ref.read(friendsProvider.notifier).fetchAll();
     });
   }
 
   @override
   Widget build(BuildContext context) {
     final dmState = ref.watch(dmProvider);
+    final friendsState = ref.watch(friendsProvider);
+    final authState = ref.watch(authProvider);
+    final currentUserId = authState.user?.id ?? '';
     final location = GoRouterState.of(context).uri.path;
     final isFriendsActive = location == '/me';
 
-    // Extract unique users from DMs to simulate a friends list
-    final friends = dmState.dms
-        .map((dm) => dm.otherUser)
+    // Get friends from friends provider
+    final friends = friendsState.friends
+        .map((f) => f.getOtherUser(currentUserId))
         .where((user) => user != null)
-        .toSet()
         .toList();
 
     // Sort friends: Online > Idle > DND > Offline > Invisible
@@ -90,6 +96,29 @@ class _FriendsSidebarState extends ConsumerState<FriendsSidebar> {
                       ),
                     ),
                   ),
+                  // Pending requests badge
+                  if (friendsState.pendingCount > 0)
+                    Container(
+                      margin: const EdgeInsets.only(left: 8),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 6,
+                        vertical: 2,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Theme.of(context).colorScheme.primary,
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Text(
+                        friendsState.pendingCount > 99
+                            ? '99+'
+                            : friendsState.pendingCount.toString(),
+                        style: TextStyle(
+                          fontSize: 10,
+                          fontWeight: FontWeight.bold,
+                          color: Theme.of(context).colorScheme.onPrimary,
+                        ),
+                      ),
+                    ),
                 ],
               ),
             ),

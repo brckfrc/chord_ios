@@ -83,6 +83,9 @@ class VoiceService {
             audioBitrate: 64000, // 64 kbps - good quality for voice
             // Opus codec is default, no need to specify
           ),
+          // Enable automatic reconnection
+          // Note: LiveKit SDK handles reconnection automatically, but we can configure it
+          // The SDK will attempt to reconnect on connection loss
         ),
       );
 

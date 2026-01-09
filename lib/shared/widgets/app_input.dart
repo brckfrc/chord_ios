@@ -15,6 +15,7 @@ class AppInput extends StatelessWidget {
   final IconData? prefixIcon;
   final Widget? suffixIcon;
   final TextCapitalization? textCapitalization;
+  final bool enabled;
 
   const AppInput({
     super.key,
@@ -31,6 +32,7 @@ class AppInput extends StatelessWidget {
     this.prefixIcon,
     this.suffixIcon,
     this.textCapitalization,
+    this.enabled = true,
   });
 
   @override
@@ -54,6 +56,7 @@ class AppInput extends StatelessWidget {
           onFieldSubmitted: onSubmitted,
           maxLines: maxLines,
           textCapitalization: textCapitalization ?? TextCapitalization.none,
+          enabled: enabled,
           style: Theme.of(context).textTheme.bodyLarge,
           decoration: InputDecoration(
             hintText: hint,

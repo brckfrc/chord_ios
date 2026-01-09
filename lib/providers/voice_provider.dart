@@ -108,6 +108,7 @@ class VoiceNotifier extends StateNotifier<VoiceState> {
   Timer? _connectionStateCheckTimer;
   bool _signalRListenersSetup = false;
   bool _isLeavingChannel = false; // Flag to prevent state updates during leave
+  int _noAudioTracksCheckCount = 0; // Track consecutive checks with no audio tracks
 
   VoiceNotifier(this._voiceService, this._networkService, this._ref)
       : super(VoiceState()) {
@@ -220,20 +221,54 @@ class VoiceNotifier extends StateNotifier<VoiceState> {
   void _setupChannelListWatcher() {
     // Watch channel provider and fetch participants when voice channels are loaded
     _ref.listen<ChannelState>(channelProvider, (previous, next) {
-      // Fetch participants when channels are loaded for a guild
-      if (next.fetchedGuilds.isNotEmpty) {
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          fetchAllVoiceChannelParticipants();
-        });
+      // Only fetch if new guilds were added (compare previous and next states)
+      if (previous != null) {
+        final newGuilds = next.fetchedGuilds.difference(previous.fetchedGuilds);
+        if (newGuilds.isEmpty) {
+          // No new guilds added, skip fetch
+          _logger.debug('No new guilds added, skipping participant fetch');
+          return;
+        }
+        _logger.debug('New guilds detected: $newGuilds, fetching participants');
+      } else if (next.fetchedGuilds.isEmpty) {
+        // First time setup but no guilds fetched yet
+        return;
       }
-    });
-    
-    // Also fetch immediately if channels are already loaded
-    final channelState = _ref.read(channelProvider);
-    if (channelState.fetchedGuilds.isNotEmpty) {
+
+      // Check if there are any voice channels before fetching
+      final guildState = _ref.read(guildProvider);
+      if (guildState.selectedGuildId == null) {
+        _logger.debug('No guild selected, skipping participant fetch');
+        return;
+      }
+
+      final channels = next.getChannelsForGuild(guildState.selectedGuildId!);
+      final voiceChannels = channels.where((c) => c.type == ChannelType.voice).toList();
+      
+      if (voiceChannels.isEmpty) {
+        _logger.debug('No voice channels in selected guild, skipping participant fetch');
+        return;
+      }
+
+      // Fetch participants only for new guilds or when voice channels exist
       WidgetsBinding.instance.addPostFrameCallback((_) {
         fetchAllVoiceChannelParticipants();
       });
+    });
+    
+    // Also fetch immediately if channels are already loaded (only once on init)
+    final channelState = _ref.read(channelProvider);
+    if (channelState.fetchedGuilds.isNotEmpty) {
+      final guildState = _ref.read(guildProvider);
+      if (guildState.selectedGuildId != null) {
+        final channels = channelState.getChannelsForGuild(guildState.selectedGuildId!);
+        final voiceChannels = channels.where((c) => c.type == ChannelType.voice).toList();
+        if (voiceChannels.isNotEmpty) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            fetchAllVoiceChannelParticipants();
+          });
+        }
+      }
     }
   }
 
@@ -446,8 +481,10 @@ class VoiceNotifier extends StateNotifier<VoiceState> {
       await _voiceService.disconnect();
 
       // Reset only user's own connection state, keep participantsByChannel for other channels
-      state = state.copyWith(
-        activeChannelId: null,
+      // Create new state instance to properly set null values
+      // copyWith doesn't handle null properly (uses ?? operator)
+      state = VoiceState(
+        activeChannelId: null, // Explicit null - VoiceBar will hide
         activeChannelName: null,
         isConnected: false,
         isConnecting: false,
@@ -455,24 +492,48 @@ class VoiceNotifier extends StateNotifier<VoiceState> {
         isDeafened: false,
         isSpeaking: false,
         participants: [], // Clear active channel participants
-        error: null,
+        participantsByChannel: state.participantsByChannel, // Preserve for other channels
         connectionQuality: ConnectionQuality.disconnected,
-        // Keep participantsByChannel - don't clear it!
+        error: null,
       );
+
+      // Log state update for debugging
+      _logger.info('✅ [Leave] State updated - activeChannelId: ${state.activeChannelId}, isConnected: ${state.isConnected}');
 
       // Stop periodic connection state check
       _stopConnectionStateCheck();
+      
+      // Reset audio tracks check counter
+      _noAudioTracksCheckCount = 0;
 
       // Reset flag after a short delay to allow any pending events to be ignored
+      // But ensure state is already updated before resetting flag
       Future.delayed(const Duration(milliseconds: 500), () {
         _isLeavingChannel = false;
+        _logger.debug('✅ [Leave] _isLeavingChannel flag reset');
       });
 
       _logger.info('Left voice channel (participantsByChannel preserved for other channels)');
     } catch (e) {
       _logger.error('Failed to leave voice channel: $e');
-      state = state.copyWith(error: e.toString());
+      // Ensure state is cleared even on error
+      // Create new state instance to properly set null values
+      // copyWith doesn't handle null properly (uses ?? operator)
+      state = VoiceState(
+        activeChannelId: null, // Explicit null - VoiceBar will hide
+        activeChannelName: null,
+        isConnected: false,
+        isConnecting: false,
+        isMuted: false,
+        isDeafened: false,
+        isSpeaking: false,
+        participants: [],
+        participantsByChannel: state.participantsByChannel, // Preserve for other channels
+        connectionQuality: ConnectionQuality.disconnected,
+        error: e.toString(),
+      );
       _isLeavingChannel = false; // Reset flag on error
+      _logger.error('✅ [Leave] State cleared due to error');
     }
   }
 
@@ -756,8 +817,9 @@ class VoiceNotifier extends StateNotifier<VoiceState> {
       _logger.debug('LiveKit connection state changed: $stateString');
       
       // Ignore connection state changes if we're in the process of leaving
-      if (_isLeavingChannel) {
-        _logger.debug('Ignoring connection state change during leave: $stateString');
+      // Also check if activeChannelId is null (already left)
+      if (_isLeavingChannel || state.activeChannelId == null) {
+        _logger.debug('Ignoring connection state change (leaving: $_isLeavingChannel, activeChannelId: ${state.activeChannelId}): $stateString');
         return;
       }
       
@@ -771,6 +833,7 @@ class VoiceNotifier extends StateNotifier<VoiceState> {
             connectionQuality: ConnectionQuality.disconnected,
             error: 'Connection lost',
           );
+          _noAudioTracksCheckCount = 0; // Reset counter
           
           // Attempt to reconnect if we're still in a channel
           final channelId = state.activeChannelId;
@@ -778,7 +841,7 @@ class VoiceNotifier extends StateNotifier<VoiceState> {
             _logger.info('🔄 [Connection State] Attempting to reconnect to channel: $channelId');
             // Trigger reconnection after a short delay
             Future.delayed(const Duration(seconds: 2), () {
-              if (state.activeChannelId == channelId && !state.isConnected) {
+              if (state.activeChannelId == channelId && !state.isConnected && !_isLeavingChannel) {
                 _logger.info('🔄 [Connection State] Reconnecting to voice channel...');
                 joinVoiceChannel(channelId);
               }
@@ -803,6 +866,7 @@ class VoiceNotifier extends StateNotifier<VoiceState> {
             connectionQuality: ConnectionQuality.good,
             error: null,
           );
+          _noAudioTracksCheckCount = 0; // Reset counter on successful connection
         }
       }
     });
@@ -1027,9 +1091,16 @@ class VoiceNotifier extends StateNotifier<VoiceState> {
         );
       });
       
+      // Check WebRTC peer connection state via engine (if available)
+      // Note: LiveKit SDK may not expose engine directly, so we rely on connectionState
+      final isWebRTCConnected = connectionState == livekit.ConnectionState.connected;
+      
       // If we think we're connected but LiveKit says disconnected, update state
-      if (state.isConnected && (connectionState != livekit.ConnectionState.connected || !isRoomConnected)) {
+      if (state.isConnected && (!isWebRTCConnected || !isRoomConnected)) {
         _logger.warn('⚠️ [Connection Check] Connection lost detected - updating state');
+        _logger.warn('   - ConnectionState: $connectionState');
+        _logger.warn('   - isRoomConnected: $isRoomConnected');
+        _logger.warn('   - isWebRTCConnected: $isWebRTCConnected');
         
         if (connectionState == livekit.ConnectionState.disconnected || !isRoomConnected) {
           state = state.copyWith(
@@ -1039,13 +1110,14 @@ class VoiceNotifier extends StateNotifier<VoiceState> {
             error: 'Connection lost',
           );
           _logger.error('❌ [Connection Check] Marked as disconnected');
+          _noAudioTracksCheckCount = 0; // Reset counter
           
           // Attempt to reconnect
           final channelId = state.activeChannelId;
-          if (channelId != null) {
+          if (channelId != null && !_isLeavingChannel) {
             _logger.info('🔄 [Connection Check] Attempting to reconnect to channel: $channelId');
             Future.delayed(const Duration(seconds: 2), () {
-              if (state.activeChannelId == channelId && !state.isConnected) {
+              if (state.activeChannelId == channelId && !state.isConnected && !_isLeavingChannel) {
                 _logger.info('🔄 [Connection Check] Reconnecting to voice channel...');
                 joinVoiceChannel(channelId);
               }
@@ -1058,16 +1130,56 @@ class VoiceNotifier extends StateNotifier<VoiceState> {
             error: 'Reconnecting...',
           );
           _logger.warn('🔄 [Connection Check] Marked as reconnecting');
+        } else {
+          // Handle any other connection state (connecting, etc.) as disconnected
+          _logger.warn('⚠️ [Connection Check] Unexpected connection state: $connectionState - treating as disconnected');
+          state = state.copyWith(
+            isConnected: false,
+            isConnecting: false,
+            connectionQuality: ConnectionQuality.disconnected,
+            error: 'Connection state: $connectionState',
+          );
+          
+          final channelId = state.activeChannelId;
+          if (channelId != null && !_isLeavingChannel) {
+            _logger.info('🔄 [Connection Check] Attempting to reconnect after unexpected state...');
+            Future.delayed(const Duration(seconds: 3), () {
+              if (state.activeChannelId == channelId && !state.isConnected && !_isLeavingChannel) {
+                _logger.info('🔄 [Connection Check] Reconnecting to voice channel after unexpected state...');
+                joinVoiceChannel(channelId);
+              }
+            });
+          }
         }
-      } else if (state.isConnected && connectionState == livekit.ConnectionState.connected && isRoomConnected) {
+      } else if (state.isConnected && isWebRTCConnected && isRoomConnected) {
         // Check if WebRTC is actually working (we have remote participants but no audio tracks)
         if (remoteParticipants.isNotEmpty && !hasActiveAudioTracks) {
-          _logger.warn('⚠️ [Connection Check] Room connected but no active audio tracks detected');
+          _noAudioTracksCheckCount++;
+          _logger.warn('⚠️ [Connection Check] Room connected but no active audio tracks detected (check #$_noAudioTracksCheckCount)');
           _logger.warn('   - Remote participants: ${remoteParticipants.length}');
           _logger.warn('   - This may indicate WebRTC connection issues');
           
-          // If this persists for multiple checks, trigger reconnection
-          // (We'll track this with a counter in the next iteration)
+          // If this persists for 3+ consecutive checks (6+ seconds), trigger reconnection
+          if (_noAudioTracksCheckCount >= 3) {
+            _logger.error('❌ [Connection Check] No audio tracks for 3+ checks - triggering reconnection');
+            _noAudioTracksCheckCount = 0; // Reset counter
+            
+            final channelId = state.activeChannelId;
+            if (channelId != null && !_isLeavingChannel) {
+              _logger.info('🔄 [Connection Check] Reconnecting due to no audio tracks...');
+              Future.delayed(const Duration(seconds: 2), () {
+                if (state.activeChannelId == channelId && !_isLeavingChannel) {
+                  joinVoiceChannel(channelId);
+                }
+              });
+            }
+          }
+        } else {
+          // Reset counter if audio tracks are present
+          if (_noAudioTracksCheckCount > 0) {
+            _logger.info('✅ [Connection Check] Audio tracks detected - resetting check counter');
+            _noAudioTracksCheckCount = 0;
+          }
         }
       }
     });

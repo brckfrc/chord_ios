@@ -1,6 +1,8 @@
 import 'dart:async';
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:image_picker/image_picker.dart';
 import '../../providers/message_provider.dart';
 import '../../providers/signalr/chat_hub_provider.dart';
 import '../../models/message/create_message_dto.dart';
@@ -8,6 +10,10 @@ import '../../providers/auth_provider.dart';
 import '../../models/auth/user_dto.dart';
 import '../../models/guild/guild_member_dto.dart';
 import '../../repositories/guild_repository.dart';
+import '../../repositories/upload_repository.dart';
+import '../../models/upload/upload_response_dto.dart';
+import '../../utils/file_utils.dart';
+import 'attachments/upload_progress_indicator.dart';
 
 /// Message composer widget with typing indicator and @ mention autocomplete
 class MessageComposer extends ConsumerStatefulWidget {
@@ -29,6 +35,8 @@ class _MessageComposerState extends ConsumerState<MessageComposer> {
   final FocusNode _focusNode = FocusNode();
   bool _isSending = false;
   Timer? _typingTimer;
+  final ImagePicker _imagePicker = ImagePicker();
+  final UploadRepository _uploadRepository = UploadRepository();
 
   // Mention autocomplete state
   List<GuildMemberDto> _guildMembers = [];
@@ -38,6 +46,12 @@ class _MessageComposerState extends ConsumerState<MessageComposer> {
   int _selectedMentionIndex = 0;
   final LayerLink _mentionLayerLink = LayerLink();
   OverlayEntry? _overlayEntry; // Overlay entry'yi state'te tut
+
+  // File upload state
+  List<XFile> _selectedFiles = [];
+  List<UploadResponseDto> _uploadedAttachments = [];
+  Map<String, double> _uploadProgress = {}; // file path -> progress (0.0 to 1.0)
+  Map<String, bool> _uploadErrors = {}; // file path -> has error
 
   @override
   void initState() {
@@ -418,6 +432,135 @@ class _MessageComposerState extends ConsumerState<MessageComposer> {
         .toList();
   }
 
+  /// Pick files from gallery or camera
+  Future<void> _pickFiles() async {
+    try {
+      // Show bottom sheet for selection
+      final source = await showModalBottomSheet<ImageSource>(
+        context: context,
+        builder: (context) => SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ListTile(
+                leading: const Icon(Icons.photo_library),
+                title: const Text('Photo Library'),
+                onTap: () => Navigator.pop(context, ImageSource.gallery),
+              ),
+              ListTile(
+                leading: const Icon(Icons.camera_alt),
+                title: const Text('Camera'),
+                onTap: () => Navigator.pop(context, ImageSource.camera),
+              ),
+            ],
+          ),
+        ),
+      );
+
+      if (source == null) return;
+
+      // Pick multiple files (for gallery) or single file (for camera)
+      final List<XFile> pickedFiles;
+      if (source == ImageSource.gallery) {
+        pickedFiles = await _imagePicker.pickMultipleMedia();
+      } else {
+        final file = await _imagePicker.pickImage(source: source);
+        pickedFiles = file != null ? [file] : [];
+      }
+
+      if (pickedFiles.isEmpty) return;
+
+      // Validate file sizes
+      final validFiles = <XFile>[];
+      for (final file in pickedFiles) {
+        final fileSize = await file.length();
+        if (fileSize > 25 * 1024 * 1024) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text('${file.name} exceeds 25MB limit'),
+                backgroundColor: Theme.of(context).colorScheme.error,
+              ),
+            );
+          }
+        } else {
+          validFiles.add(file);
+        }
+      }
+
+      if (validFiles.isEmpty) return;
+
+      setState(() {
+        _selectedFiles.addAll(validFiles);
+        // Initialize progress for new files
+        for (final file in validFiles) {
+          _uploadProgress[file.path] = 0.0;
+          _uploadErrors[file.path] = false;
+        }
+      });
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to pick files: ${e.toString()}'),
+            backgroundColor: Theme.of(context).colorScheme.error,
+          ),
+        );
+      }
+    }
+  }
+
+  /// Remove selected file
+  void _removeFile(XFile file) {
+    setState(() {
+      _selectedFiles.remove(file);
+      _uploadProgress.remove(file.path);
+      _uploadErrors.remove(file.path);
+    });
+  }
+
+  /// Upload all selected files
+  Future<List<String>> _uploadFiles() async {
+    final uploadedIds = <String>[];
+
+    for (final file in _selectedFiles) {
+      if (_uploadErrors[file.path] == true) continue; // Skip files with errors
+
+      try {
+        final uploadResponse = await _uploadRepository.uploadFile(
+          File(file.path),
+          onProgress: (sent, total) {
+            if (mounted) {
+              setState(() {
+                _uploadProgress[file.path] = sent / total;
+              });
+            }
+          },
+        );
+
+        uploadedIds.add(uploadResponse.id);
+        setState(() {
+          _uploadedAttachments.add(uploadResponse);
+          _uploadProgress[file.path] = 1.0;
+        });
+      } catch (e) {
+        setState(() {
+          _uploadErrors[file.path] = true;
+        });
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Failed to upload ${file.name}: ${e.toString()}'),
+              backgroundColor: Theme.of(context).colorScheme.error,
+            ),
+          );
+        }
+      }
+    }
+
+    return uploadedIds;
+  }
+
   Future<void> _sendMessage() async {
     // If mention autocomplete is open, close it first
     if (_mentionStartIndex != null) {
@@ -430,14 +573,23 @@ class _MessageComposerState extends ConsumerState<MessageComposer> {
     }
 
     final content = _controller.text.trim();
-    if (content.isEmpty || _isSending) return;
+    if (content.isEmpty && _selectedFiles.isEmpty || _isSending) return;
 
     setState(() {
       _isSending = true;
     });
 
     try {
-      final dto = CreateMessageDto(content: content);
+      // Upload files first if any
+      List<String> attachmentIds = [];
+      if (_selectedFiles.isNotEmpty) {
+        attachmentIds = await _uploadFiles();
+      }
+
+      final dto = CreateMessageDto(
+        content: content,
+        attachmentIds: attachmentIds.isNotEmpty ? attachmentIds : null,
+      );
       
       // Use DM message methods if guildId is null (DM), otherwise use channel message
       if (widget.guildId == null) {
@@ -450,7 +602,14 @@ class _MessageComposerState extends ConsumerState<MessageComposer> {
             .createMessage(widget.channelId, dto);
       }
 
+      // Clear state after successful send
       _controller.clear();
+      setState(() {
+        _selectedFiles.clear();
+        _uploadedAttachments.clear();
+        _uploadProgress.clear();
+        _uploadErrors.clear();
+      });
       _stopTypingIndicator();
     } catch (e) {
       // Show error toast or handle error
@@ -504,6 +663,121 @@ class _MessageComposerState extends ConsumerState<MessageComposer> {
               ),
             ),
           ),
+        // File previews and upload progress
+        if (_selectedFiles.isNotEmpty)
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Preview grid
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: _selectedFiles.map((file) {
+                    final progress = _uploadProgress[file.path] ?? 0.0;
+                    final hasError = _uploadErrors[file.path] ?? false;
+                    return Stack(
+                      children: [
+                        Container(
+                          width: 80,
+                          height: 80,
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(
+                              color: hasError
+                                  ? Theme.of(context).colorScheme.error
+                                  : Theme.of(context)
+                                      .colorScheme
+                                      .outline
+                                      .withOpacity(0.2),
+                              width: 1,
+                            ),
+                          ),
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(8),
+                            child: file.mimeType?.startsWith('image/') == true
+                                ? Image.file(
+                                    File(file.path),
+                                    fit: BoxFit.cover,
+                                    errorBuilder: (context, error, stackTrace) =>
+                                        const Icon(Icons.broken_image),
+                                  )
+                                : const Icon(Icons.videocam),
+                          ),
+                        ),
+                        // Remove button
+                        Positioned(
+                          top: 4,
+                          right: 4,
+                          child: GestureDetector(
+                            onTap: () => _removeFile(file),
+                            child: Container(
+                              padding: const EdgeInsets.all(4),
+                              decoration: BoxDecoration(
+                                color: Colors.black.withOpacity(0.6),
+                                shape: BoxShape.circle,
+                              ),
+                              child: const Icon(
+                                Icons.close,
+                                size: 16,
+                                color: Colors.white,
+                              ),
+                            ),
+                          ),
+                        ),
+                        // Progress indicator
+                        if (progress > 0.0 && progress < 1.0 && !hasError)
+                          Positioned(
+                            bottom: 0,
+                            left: 0,
+                            right: 0,
+                            child: LinearProgressIndicator(
+                              value: progress,
+                              backgroundColor: Colors.black.withOpacity(0.3),
+                              valueColor: const AlwaysStoppedAnimation<Color>(
+                                Colors.white,
+                              ),
+                            ),
+                          ),
+                        // Error indicator
+                        if (hasError)
+                          Positioned.fill(
+                            child: Container(
+                              decoration: BoxDecoration(
+                                color: Theme.of(context)
+                                    .colorScheme
+                                    .error
+                                    .withOpacity(0.3),
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: const Icon(
+                                Icons.error,
+                                color: Colors.white,
+                              ),
+                            ),
+                          ),
+                      ],
+                    );
+                  }).toList(),
+                ),
+                // Upload progress indicators
+                if (_uploadProgress.values.any((p) => p > 0.0 && p < 1.0))
+                  ..._selectedFiles
+                      .where((file) =>
+                          (_uploadProgress[file.path] ?? 0.0) > 0.0 &&
+                          (_uploadProgress[file.path] ?? 0.0) < 1.0)
+                      .map((file) => Padding(
+                            padding: const EdgeInsets.only(top: 8),
+                            child: UploadProgressIndicator(
+                              progress: _uploadProgress[file.path] ?? 0.0,
+                              fileName: file.name,
+                              onCancel: () => _removeFile(file),
+                            ),
+                          )),
+              ],
+            ),
+          ),
         // Message input
         Container(
           padding: const EdgeInsets.all(16),
@@ -518,6 +792,13 @@ class _MessageComposerState extends ConsumerState<MessageComposer> {
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
+              // Upload button
+              IconButton(
+                onPressed: _isSending ? null : _pickFiles,
+                icon: const Icon(Icons.attach_file),
+                tooltip: 'Attach file',
+              ),
+              const SizedBox(width: 4),
               // Text input
               Expanded(
                 child: CompositedTransformTarget(

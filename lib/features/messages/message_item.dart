@@ -2,6 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../models/message/message_dto.dart';
 import '../../providers/auth_provider.dart';
+import '../../utils/file_utils.dart';
+import 'attachments/image_attachment.dart';
+import 'attachments/video_attachment.dart';
+import 'attachments/document_attachment.dart';
 
 /// Message item widget with Discord-like grouping
 class MessageItem extends ConsumerWidget {
@@ -273,30 +277,33 @@ class MessageItem extends ConsumerWidget {
     );
   }
 
-  Widget _buildAttachment(BuildContext context, attachment) {
-    // Placeholder for attachment display
-    return Container(
-      padding: const EdgeInsets.all(8),
-      decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surfaceContainerHighest,
-        borderRadius: BorderRadius.circular(4),
-      ),
-      child: Row(
-        children: [
-          const Icon(Icons.attach_file, size: 16),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Text(
-              attachment.fileName ?? 'Attachment',
-              style: TextStyle(
-                fontSize: 14,
-                color: Theme.of(context).colorScheme.onSurface.withOpacity(0.8),
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
+  Widget _buildAttachment(BuildContext context, MessageAttachmentDto attachment) {
+    final fileType = FileUtils.getFileType(attachment.contentType);
+
+    // Determine attachment type from contentType or use default
+    if (fileType == 'image') {
+      return ImageAttachment(
+        imageUrl: attachment.url,
+        fileName: attachment.fileName,
+      );
+    } else if (fileType == 'video') {
+      // Extract duration from attachment if available
+      // Note: Backend may not provide duration in MessageAttachmentDto
+      // We'll need to check if duration is available in the response
+      return VideoAttachment(
+        videoUrl: attachment.url,
+        fileName: attachment.fileName,
+        // duration: attachment.duration, // If available in DTO
+      );
+    } else {
+      // Document or unknown type
+      return DocumentAttachment(
+        fileName: attachment.fileName ?? 'Attachment',
+        fileSize: attachment.fileSize,
+        contentType: attachment.contentType,
+        url: attachment.url,
+      );
+    }
   }
 
   Widget _buildEmbed(BuildContext context, embed) {

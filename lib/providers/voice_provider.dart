@@ -105,6 +105,7 @@ class VoiceNotifier extends StateNotifier<VoiceState> {
   StreamSubscription? _participantDisconnectedSub;
   StreamSubscription? _speakingChangedSub;
   StreamSubscription? _connectionStateSub;
+  StreamSubscription? _trackMutedSub;
   Timer? _connectionStateCheckTimer;
   bool _signalRListenersSetup = false;
   bool _isLeavingChannel = false; // Flag to prevent state updates during leave
@@ -563,7 +564,7 @@ class VoiceNotifier extends StateNotifier<VoiceState> {
   /// Toggle deafen (speaker off)
   Future<void> toggleDeafen() async {
     try {
-      final newDeafenedState = !await _voiceService.toggleSpeaker();
+      final newDeafenedState = await _voiceService.toggleSpeaker();
       final currentChannelId = state.activeChannelId;
 
       if (currentChannelId == null) return;
@@ -603,19 +604,28 @@ class VoiceNotifier extends StateNotifier<VoiceState> {
       final updatedMap = Map<String, List<VoiceParticipantDto>>.from(state.participantsByChannel);
       final channelParticipants = List<VoiceParticipantDto>.from(updatedMap[channelId] ?? []);
       
-      // Don't add if already exists
-      if (channelParticipants.any((p) => p.userId == participant.userId)) {
-        _logger.debug('User already in participant list: ${participant.username} (channel: $channelId)');
-        return;
+      // Check if participant already exists (from LiveKit event)
+      final existingIndex = channelParticipants.indexWhere((p) => p.userId == participant.userId);
+      if (existingIndex >= 0) {
+        // Participant exists (likely from LiveKit), update with full SignalR state
+        channelParticipants[existingIndex] = participant;
+        _logger.debug('✅ [SignalR] Updated existing participant with full state: ${participant.username} (channel: $channelId)');
+      } else {
+        // New participant, add it
+        channelParticipants.add(participant);
+        _logger.debug('✅ [SignalR] Added new participant: ${participant.username} (channel: $channelId)');
       }
-      
-      channelParticipants.add(participant);
       updatedMap[channelId] = channelParticipants;
       
       // Also update active channel's participants list for backward compatibility
       final currentParticipants = List<VoiceParticipantDto>.from(state.participants);
       if (channelId == state.activeChannelId) {
-        if (!currentParticipants.any((p) => p.userId == participant.userId)) {
+        final activeIndex = currentParticipants.indexWhere((p) => p.userId == participant.userId);
+        if (activeIndex >= 0) {
+          // Update existing participant
+          currentParticipants[activeIndex] = participant;
+        } else {
+          // Add new participant
           currentParticipants.add(participant);
         }
       }
@@ -723,6 +733,96 @@ class VoiceNotifier extends StateNotifier<VoiceState> {
     }
   }
 
+  /// Add participant from LiveKit event (immediate UI update with basic info)
+  /// Full state will be synced via SignalR events later
+  void _addParticipantFromLiveKit(livekit.Participant participant, String userId) {
+    try {
+      final activeChannelId = state.activeChannelId;
+      if (activeChannelId == null) {
+        _logger.debug('Cannot add participant from LiveKit: no active channel');
+        return;
+      }
+
+      // Check if participant already exists (from SignalR or previous LiveKit event)
+      final updatedMap = Map<String, List<VoiceParticipantDto>>.from(state.participantsByChannel);
+      final channelParticipants = List<VoiceParticipantDto>.from(updatedMap[activeChannelId] ?? []);
+      
+      if (channelParticipants.any((p) => p.userId == userId)) {
+        _logger.debug('Participant already exists from LiveKit: $userId (channel: $activeChannelId)');
+        // Participant already exists, SignalR will update full state if needed
+        return;
+      }
+
+      // Create basic participant DTO from LiveKit info
+      // SignalR will provide full state (mute/deafen) later
+      final participantDto = VoiceParticipantDto(
+        userId: userId,
+        username: participant.name.isNotEmpty ? participant.name : 'Unknown',
+        displayName: participant.name.isNotEmpty ? participant.name : null,
+        isMuted: false, // Will be updated by SignalR
+        isDeafened: false, // Will be updated by SignalR
+        isSpeaking: false,
+        isVideoEnabled: false,
+        isLocal: false,
+      );
+
+      channelParticipants.add(participantDto);
+      updatedMap[activeChannelId] = channelParticipants;
+
+      // Also update active channel's participants list for backward compatibility
+      final currentParticipants = List<VoiceParticipantDto>.from(state.participants);
+      if (!currentParticipants.any((p) => p.userId == userId)) {
+        currentParticipants.add(participantDto);
+      }
+
+      state = state.copyWith(
+        participantsByChannel: updatedMap,
+        participants: currentParticipants,
+      );
+
+      _logger.info('✅ [LiveKit] Participant added immediately: ${participant.name} (userId: $userId, channel: $activeChannelId)');
+      _logger.debug('Channel $activeChannelId now has ${channelParticipants.length} participants (LiveKit update)');
+    } catch (e) {
+      _logger.error('Failed to add participant from LiveKit: $e');
+    }
+  }
+
+  /// Remove participant from LiveKit event (immediate UI update)
+  void _removeParticipantFromLiveKit(String userId) {
+    try {
+      final activeChannelId = state.activeChannelId;
+      if (activeChannelId == null) {
+        _logger.debug('Cannot remove participant from LiveKit: no active channel');
+        return;
+      }
+
+      // Update participantsByChannel map
+      final updatedMap = Map<String, List<VoiceParticipantDto>>.from(state.participantsByChannel);
+      final channelParticipants = List<VoiceParticipantDto>.from(updatedMap[activeChannelId] ?? []);
+      final beforeCount = channelParticipants.length;
+
+      channelParticipants.removeWhere((p) => p.userId == userId);
+      updatedMap[activeChannelId] = channelParticipants;
+
+      // Also update active channel's participants list for backward compatibility
+      final currentParticipants = List<VoiceParticipantDto>.from(state.participants);
+      currentParticipants.removeWhere((p) => p.userId == userId);
+
+      state = state.copyWith(
+        participantsByChannel: updatedMap,
+        participants: currentParticipants,
+      );
+
+      if (beforeCount != channelParticipants.length) {
+        _logger.info('✅ [LiveKit] Participant removed immediately: $userId (channel: $activeChannelId, before: $beforeCount, after: ${channelParticipants.length})');
+      } else {
+        _logger.debug('Participant not found for removal from LiveKit: $userId (channel: $activeChannelId)');
+      }
+    } catch (e) {
+      _logger.error('Failed to remove participant from LiveKit: $e');
+    }
+  }
+
   /// Setup network listener
   void _setupNetworkListener() {
     _networkSubscription = _networkService.networkStream.listen((result) {
@@ -755,12 +855,31 @@ class VoiceNotifier extends StateNotifier<VoiceState> {
   void _setupVoiceEventListeners() {
     _participantConnectedSub = _voiceService.onParticipantConnected.listen((participant) {
       _logger.debug('LiveKit participant connected: ${participant.name} (identity: ${participant.identity})');
-      // Participant info will be synced via SignalR events
+      
+      // Immediately update UI with LiveKit event (hybrid approach)
+      // Use identity as userId (backend sets participant identity as userId in LiveKit token)
+      final userId = participant.identity.isNotEmpty 
+          ? participant.identity 
+          : (participant.name.isNotEmpty ? participant.name : participant.sid);
+      
+      if (state.activeChannelId != null && userId.isNotEmpty) {
+        // Add participant immediately with basic info from LiveKit
+        // Full state (mute/deafen) will be synced via SignalR events later
+        _addParticipantFromLiveKit(participant, userId);
+      }
     });
 
     _participantDisconnectedSub = _voiceService.onParticipantDisconnected.listen((participant) {
       _logger.debug('LiveKit participant disconnected: ${participant.name} (identity: ${participant.identity})');
-      // Participant info will be synced via SignalR events
+      
+      // Immediately remove from UI
+      final userId = participant.identity.isNotEmpty 
+          ? participant.identity 
+          : (participant.name.isNotEmpty ? participant.name : participant.sid);
+      
+      if (state.activeChannelId != null && userId.isNotEmpty) {
+        _removeParticipantFromLiveKit(userId);
+      }
     });
 
     _speakingChangedSub = _voiceService.onSpeakingChanged.listen((speakingMap) {
@@ -779,18 +898,19 @@ class VoiceNotifier extends StateNotifier<VoiceState> {
         final participant = channelParticipants[i];
         final isSpeaking = speakingMap[participant.userId] ?? false;
         
+        // Check if this is the local user and update speaking state
+        if (participant.userId == currentUserId) {
+          localUserSpeaking = isSpeaking;
+        }
+        
         if (participant.isSpeaking != isSpeaking) {
           channelParticipants[i] = participant.copyWith(isSpeaking: isSpeaking);
           hasChanges = true;
-          
-          // Track local user speaking state
-          if (participant.userId == currentUserId && isSpeaking) {
-            localUserSpeaking = true;
-          }
         }
       }
       
-      if (hasChanges) {
+      // Always update state if local user speaking state changed, even if no other changes
+      if (hasChanges || state.isSpeaking != localUserSpeaking) {
         updatedMap[activeChannelId] = channelParticipants;
         
         // Also update active channel's participants list for backward compatibility
@@ -867,6 +987,20 @@ class VoiceNotifier extends StateNotifier<VoiceState> {
             error: null,
           );
           _noAudioTracksCheckCount = 0; // Reset counter on successful connection
+        }
+      }
+    });
+
+    // Listen to track muted events (including local participant)
+    _trackMutedSub = _voiceService.onTrackMuted.listen((event) {
+      // Check if this is a local participant track
+      if (event.participant is livekit.LocalParticipant) {
+        // Check if it's an audio track by comparing the kind string representation
+        // TrackType.audio is not easily accessible with 'as livekit' alias
+        final kindString = event.publication.kind.toString().toLowerCase();
+        if (kindString.contains('audio')) {
+          _logger.warn('⚠️ [VoiceProvider] Local audio track muted - VoiceService will attempt recovery');
+          // VoiceService already handles recovery, but we log it here for visibility
         }
       }
     });
@@ -1039,6 +1173,7 @@ class VoiceNotifier extends StateNotifier<VoiceState> {
     _participantDisconnectedSub?.cancel();
     _speakingChangedSub?.cancel();
     _connectionStateSub?.cancel();
+    _trackMutedSub?.cancel();
     _stopConnectionStateCheck();
     super.dispose();
   }
@@ -1180,6 +1315,16 @@ class VoiceNotifier extends StateNotifier<VoiceState> {
             _logger.info('✅ [Connection Check] Audio tracks detected - resetting check counter');
             _noAudioTracksCheckCount = 0;
           }
+        }
+
+        // Check local audio track state
+        if (!_voiceService.isLocalAudioTrackActive) {
+          _logger.warn('⚠️ [Connection Check] Local audio track is not active - attempting recovery...');
+          _voiceService.ensureMicrophoneEnabled().then((_) {
+            _logger.info('✅ [Connection Check] Local audio track recovery attempted');
+          }).catchError((e) {
+            _logger.error('❌ [Connection Check] Failed to recover local audio track: $e');
+          });
         }
       }
     });

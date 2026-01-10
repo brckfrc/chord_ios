@@ -47,6 +47,10 @@
 	<true/>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>Chord needs microphone access for voice channels</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Photo library access is required for sharing images and videos.</string>
+	<key>NSCameraUsageDescription</key>
+	<string>Camera access is required for taking photos and videos.</string>
 	<key>UIBackgroundModes</key>
 	<array>
 		<string>audio</string>

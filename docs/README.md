@@ -12,6 +12,7 @@ Chord is a modern, real-time chat application inspired by Discord, built with .N
 | [backend/README.md](backend/README.md)   | API endpoints, SignalR, LiveKit, mobile integration |
 | [frontend/README.md](frontend/README.md) | React components, state management, UI              |
 | [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) | Deployment scenarios, CI/CD, production setup       |
+| [docs/ER_DIAGRAM.md](docs/ER_DIAGRAM.md) | Database schema ER diagram (Mermaid)                |
 | [chord_roadmap.md](chord_roadmap.md)     | Development phases and feature roadmap              |
 
 ---
@@ -118,7 +119,8 @@ chord/
 │   ├── DEPLOYMENT.md              # Deployment overview & decision tree
 │   ├── DEPLOYMENT-STANDALONE.md   # Fresh server + Caddy guide
 │   ├── DEPLOYMENT-STANDARD.md     # Existing reverse proxy guide
-│   └── DEPLOYMENT-YUNOHOST.md     # YunoHost-specific guide
+│   ├── DEPLOYMENT-YUNOHOST.md     # YunoHost-specific guide
+│   └── ER_DIAGRAM.md              # Database ER diagram (Mermaid)
 │
 ├── docker-compose.standalone.yml  # Standalone deployment (Caddy + blue-green)
 ├── docker-compose.deploy.yml      # Standard VPS deployment (blue-green)
@@ -156,6 +158,29 @@ git commit → pre-commit hook → ESLint on staged files
 - **Errors** block the commit (must be fixed)
 - **Warnings** are allowed (fix later)
 
+### Commit Conventions
+
+Use [Conventional Commits](https://www.conventionalcommits.org/) format:
+
+```bash
+feat: add new feature
+fix: fix bug
+chore: update dependencies
+docs: update documentation
+style: format code
+refactor: refactor code
+test: add tests
+```
+
+**Skip CI/CD:**
+
+```bash
+git commit -m "docs: update README [skip ci]"
+git commit -m "chore: cleanup [ci skip]"
+```
+
+Supported skip keywords: `[skip ci]`, `[ci skip]`, `[no ci]`, `[skip actions]`, `[actions skip]`
+
 ### Backend
 
 ```bash
@@ -191,6 +216,12 @@ Three deployment scenarios with blue-green support:
 | **Standalone** | Fresh server, no existing infrastructure | [DEPLOYMENT-STANDALONE.md](docs/DEPLOYMENT-STANDALONE.md) |
 | **Standard VPS** | Have Nginx, Traefik, or Apache | [DEPLOYMENT-STANDARD.md](docs/DEPLOYMENT-STANDARD.md) |
 | **YunoHost** | Using YunoHost for self-hosting | [DEPLOYMENT-YUNOHOST.md](docs/DEPLOYMENT-YUNOHOST.md) |
+
+**YunoHost Note:** YunoHost uses an automated blue-green strategy where:
+- **Blue stack (5002/3002)**: Staging environment - deploy new versions here first
+- **Green stack (5003/3003)**: Production - Nginx always routes to green
+- After blue stack health checks pass, automatically deploy to green, then stop blue
+- No manual Nginx config changes needed (Nginx is static, always points to green)
 
 **Quick Start:**
 

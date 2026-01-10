@@ -13,6 +13,7 @@ import '../../models/guild/guild_member_dto.dart';
 import '../../repositories/guild_repository.dart';
 import '../../repositories/upload_repository.dart';
 import '../../models/upload/upload_response_dto.dart';
+import '../../utils/file_utils.dart';
 import 'attachments/upload_progress_indicator.dart';
 
 /// Message composer widget with typing indicator and @ mention autocomplete
@@ -511,6 +512,32 @@ class _MessageComposerState extends ConsumerState<MessageComposer> {
     }
   }
 
+  /// Build file preview widget based on file type
+  Widget _buildFilePreview(XFile file) {
+    final fileType = FileUtils.getFileType(file.mimeType);
+    
+    switch (fileType) {
+      case 'image':
+        return Image.file(
+          File(file.path),
+          fit: BoxFit.cover,
+          errorBuilder: (context, error, stackTrace) =>
+              const Icon(Icons.broken_image),
+        );
+      case 'video':
+        return Container(
+          color: Theme.of(context).colorScheme.surfaceContainerHighest,
+          child: const Icon(Icons.videocam),
+        );
+      case 'document':
+      default:
+        return Container(
+          color: Theme.of(context).colorScheme.surfaceContainerHighest,
+          child: const Icon(Icons.insert_drive_file),
+        );
+    }
+  }
+
   /// Remove selected file
   void _removeFile(XFile file) {
     setState(() {
@@ -729,15 +756,7 @@ class _MessageComposerState extends ConsumerState<MessageComposer> {
                           ),
                           child: ClipRRect(
                             borderRadius: BorderRadius.circular(8),
-                            child: file.mimeType?.startsWith('image/') == true
-                                ? Image.file(
-                                    File(file.path),
-                                    fit: BoxFit.cover,
-                                    errorBuilder:
-                                        (context, error, stackTrace) =>
-                                            const Icon(Icons.broken_image),
-                                  )
-                                : const Icon(Icons.videocam),
+                            child: _buildFilePreview(file),
                           ),
                         ),
                         // Remove button

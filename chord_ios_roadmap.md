@@ -397,28 +397,39 @@
 
 ## 🏗️ FAZ 8: FILE UPLOAD & VIDEO SUPPORT
 
+**Durum**: ✅ TAMAMLANDI (2025-01-XX)
+
 **Süre**: ~1 hafta
-**Backend Bağımlılığı**: ⏳ FAZ 7 (File upload endpoints) - iOS önce yapılabilir
-**Frontend Referans**: File upload logic (FAZ 7'de yapılacak)
+**Backend Bağımlılığı**: ✅ FAZ 7 tamamlandı (File upload endpoints hazır)
+**Frontend Referans**: File upload logic (FAZ 7'de yapıldı)
+
+**Not**:
+- Image, video ve document (PDF, Word, Excel, TXT, CSV, ZIP, RAR) upload desteği eklendi
+- Video thumbnail aspect ratio düzeltmesi yapıldı (4:3, 16:9, 1:1 gibi farklı aspect ratio'lar doğru gösteriliyor)
+- Upload sırasında dosya türüne göre doğru icon gösterimi eklendi (image/video/document)
+- Production MinIO URL transform eklendi (reverse proxy path `/uploads` desteği)
 
 ### Görevler
 
-- [ ] `image_picker` package kurulumu
-- [ ] `video_player` package kurulumu
-- [ ] File upload UI (gallery picker, camera)
-- [ ] Upload API client (multipart/form-data, progress indicator)
-- [ ] Video thumbnail generation
-- [ ] Video player widget (inline playback)
-- [ ] Image viewer (full screen, zoom)
-- [ ] File size/duration validation
-- [ ] Upload progress indicator
+- [x] `image_picker` package kurulumu ✅
+- [x] `video_player` package kurulumu ✅
+- [x] File upload UI (gallery picker, camera) ✅
+- [x] Upload API client (multipart/form-data, progress indicator) ✅
+- [x] Video thumbnail generation ✅
+- [x] Video player widget (inline playback) ✅
+- [x] Image viewer (full screen, zoom) ✅
+- [x] File size/duration validation ✅
+- [x] Upload progress indicator ✅
 
 ### Deliverables
 
-✅ Dosya yükleme çalışıyor
+✅ Dosya yükleme çalışıyor (image, video, document)
 ✅ Video inline oynatılıyor
 ✅ Resim full screen görüntüleniyor
-✅ Boyut/süre limitleri kontrol ediliyor
+✅ Boyut/süre limitleri kontrol ediliyor (25MB max)
+✅ Video thumbnail aspect ratio doğru gösteriliyor
+✅ Upload sırasında dosya türüne göre doğru icon gösteriliyor
+✅ Production MinIO URL transform çalışıyor
 
 ---
 
@@ -520,9 +531,9 @@
 6. **FAZ 6**: Voice channels + WebRTC temel - ✅ TAMAMLANDI
 7. **FAZ 7**: WebRTC Multi-User & Mute/Unmute - ✅ TAMAMLANDI
 8. **FAZ 7.5**: WebRTC Connection Stability & Friends Feature - ✅ TAMAMLANDI
-9. **FAZ 8**: File upload (Backend FAZ 7'de yapılacak, iOS önce başlayabilir)
-8. **FAZ 9**: Push notifications (Backend FAZ 5.5'te mentions tamamlandı ✅)
-9. **FAZ 10-12**: Polish, testing, store
+9. **FAZ 8**: File upload & Video support - ✅ TAMAMLANDI
+10. **FAZ 9**: Push notifications (Backend FAZ 5.5'te mentions tamamlandı ✅)
+11. **FAZ 10-12**: Polish, testing, store
 
 ---
 
@@ -532,7 +543,7 @@
 
 - FAZ 1-5.5: Backend hazır ✅
 - FAZ 6-7 (WebRTC): iOS önce yapılabilir, backend sonra RtcSignalingHub ekler
-- FAZ 8 (File Upload): iOS önce yapılabilir, backend sonra upload endpoints ekler
+- FAZ 8 (File Upload): ✅ TAMAMLANDI (Backend hazır, iOS implementasyonu tamamlandı)
 
 **Backend beklenmesi gereken:**
 

@@ -1,3 +1,4 @@
+import 'dart:convert';
 import '../auth/user_dto.dart';
 
 /// Message DTO
@@ -49,11 +50,7 @@ class MessageDto {
           : (json['author'] != null // Backend'den author gelebilir
               ? UserDto.fromJson(json['author'] as Map<String, dynamic>)
               : null),
-      attachments: json['attachments'] != null && json['attachments'] is List
-          ? (json['attachments'] as List)
-              .map((a) => MessageAttachmentDto.fromJson(a as Map<String, dynamic>))
-              .toList()
-          : null,
+      attachments: _parseAttachments(json['attachments']),
       embeds: json['embeds'] != null && json['embeds'] is List
           ? (json['embeds'] as List)
               .map((e) => MessageEmbedDto.fromJson(e as Map<String, dynamic>))
@@ -114,43 +111,140 @@ class MessageDto {
       isPending: isPending ?? this.isPending,
     );
   }
+
+  /// Parse attachments from backend response
+  /// Backend sends attachments as JSON string: "[{url, type, size, name, duration}]"
+  /// or as array (for backward compatibility)
+  static List<MessageAttachmentDto>? _parseAttachments(dynamic attachments) {
+    print('🔍 [MessageDto] Parsing attachments: $attachments (type: ${attachments.runtimeType})');
+    
+    if (attachments == null) {
+      print('⚠️ [MessageDto] Attachments is null');
+      return null;
+    }
+
+    if (attachments is String) {
+      print('📝 [MessageDto] Attachments is String, parsing JSON...');
+      print('📝 [MessageDto] String content: $attachments');
+      try {
+        final decoded = jsonDecode(attachments);
+        print('✅ [MessageDto] Decoded: $decoded (type: ${decoded.runtimeType})');
+        if (decoded is List) {
+          print('✅ [MessageDto] Decoded is List with ${decoded.length} items');
+          final result = decoded
+              .map((a) {
+                print('📦 [MessageDto] Parsing attachment item: $a');
+                return MessageAttachmentDto.fromJson(a as Map<String, dynamic>);
+              })
+              .toList();
+          print('✅ [MessageDto] Successfully parsed ${result.length} attachments');
+          return result;
+        }
+        print('⚠️ [MessageDto] Decoded is not a List, it is: ${decoded.runtimeType}');
+        return null;
+      } catch (e, stackTrace) {
+        print('❌ [MessageDto] Parse error: $e');
+        print('❌ [MessageDto] Stack trace: $stackTrace');
+        return null;
+      }
+    } else if (attachments is List) {
+      print('📋 [MessageDto] Attachments is already a List with ${attachments.length} items');
+      final result = attachments
+          .map((a) {
+            print('📦 [MessageDto] Parsing attachment item: $a');
+            return MessageAttachmentDto.fromJson(a as Map<String, dynamic>);
+          })
+          .toList();
+      print('✅ [MessageDto] Successfully parsed ${result.length} attachments from List');
+      return result;
+    }
+    print('⚠️ [MessageDto] Unknown attachments type: ${attachments.runtimeType}');
+    return null;
+  }
 }
 
 /// Message Attachment DTO
+/// Backend format: { url, type, size, name, duration }
 class MessageAttachmentDto {
-  final String id;
   final String url;
-  final String? fileName;
-  final String? contentType;
-  final int? fileSize;
+  final String? fileName; // Backend'de "name"
+  final String? contentType; // Backend'de "type" field'ından türetilir veya "mimeType"
+  final int? fileSize; // Backend'de "size"
+  final String? type; // "image", "video", "document"
+  final int? duration; // Video için süre (saniye)
 
   MessageAttachmentDto({
-    required this.id,
     required this.url,
     this.fileName,
     this.contentType,
     this.fileSize,
+    this.type,
+    this.duration,
   });
 
   factory MessageAttachmentDto.fromJson(Map<String, dynamic> json) {
+    // Backend formatı: { url, type, size, name, duration, mimeType? }
+    // Frontend formatı: { url, fileName, contentType, fileSize, type?, duration? }
+    
+    print('📦 [MessageAttachmentDto] Parsing JSON: $json');
+    print('📦 [MessageAttachmentDto] JSON keys: ${json.keys.toList()}');
+    
+    final backendType = json['type'] as String?;
+    final backendMimeType = json['mimeType'] as String?;
+    
+    print('📦 [MessageAttachmentDto] type: $backendType, mimeType: $backendMimeType');
+    
+    // contentType'ı belirle: önce mimeType, sonra type'dan türet
+    String? contentType;
+    if (backendMimeType != null) {
+      contentType = backendMimeType;
+      print('📦 [MessageAttachmentDto] Using mimeType: $contentType');
+    } else if (backendType != null) {
+      // type'dan mimeType türet
+      switch (backendType.toLowerCase()) {
+        case 'image':
+          contentType = 'image/jpeg'; // Default
+          break;
+        case 'video':
+          contentType = 'video/mp4'; // Default
+          break;
+        case 'document':
+          contentType = 'application/pdf'; // Default
+          break;
+      }
+      print('📦 [MessageAttachmentDto] Derived contentType from type: $contentType');
+    }
+
+    final url = json['url'] as String;
+    final fileName = json['name'] as String? ?? json['fileName'] as String?;
+    final fileSize = json['size'] as int? ?? json['fileSize'] as int?;
+    final duration = json['duration'] as int?;
+    
+    print('📦 [MessageAttachmentDto] Parsed: url=$url, fileName=$fileName, contentType=$contentType, fileSize=$fileSize, type=$backendType, duration=$duration');
+
     return MessageAttachmentDto(
-      id: json['id']?.toString() ?? '',
-      url: json['url'] as String,
-      fileName: json['fileName'] as String?,
-      contentType: json['contentType'] as String?,
-      fileSize: json['fileSize'] as int?,
+      url: url,
+      fileName: fileName,
+      contentType: contentType ?? json['contentType'] as String?,
+      fileSize: fileSize,
+      type: backendType,
+      duration: duration,
     );
   }
 
   Map<String, dynamic> toJson() {
     return {
-      'id': id,
       'url': url,
       if (fileName != null) 'fileName': fileName,
       if (contentType != null) 'contentType': contentType,
       if (fileSize != null) 'fileSize': fileSize,
+      if (type != null) 'type': type,
+      if (duration != null) 'duration': duration,
     };
   }
+
+  // Backend compatibility: id field'ı yok, url'yi id olarak kullanabiliriz
+  String get id => url;
 }
 
 /// Message Embed DTO

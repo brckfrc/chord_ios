@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:photo_view/photo_view.dart';
 import 'package:video_player/video_player.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import '../../../utils/file_utils.dart';
 
 /// Full screen attachment viewer for images and videos
 class AttachmentViewer extends StatefulWidget {
@@ -35,7 +36,8 @@ class _AttachmentViewerState extends State<AttachmentViewer> {
 
   Future<void> _initializeVideo() async {
     try {
-      _videoController = VideoPlayerController.networkUrl(Uri.parse(widget.videoUrl!));
+      final transformedUrl = FileUtils.transformMinioUrl(widget.videoUrl!);
+      _videoController = VideoPlayerController.networkUrl(Uri.parse(transformedUrl));
       await _videoController!.initialize();
       if (mounted) {
         setState(() {
@@ -97,8 +99,9 @@ class _AttachmentViewerState extends State<AttachmentViewer> {
   }
 
   Widget _buildImageViewer() {
+    final transformedUrl = FileUtils.transformMinioUrl(widget.imageUrl!);
     return PhotoView(
-      imageProvider: CachedNetworkImageProvider(widget.imageUrl!),
+      imageProvider: CachedNetworkImageProvider(transformedUrl),
       minScale: PhotoViewComputedScale.contained,
       maxScale: PhotoViewComputedScale.covered * 2,
       backgroundDecoration: const BoxDecoration(color: Colors.black),

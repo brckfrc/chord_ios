@@ -117,7 +117,7 @@ class MessageCacheService {
     String channelId,
     String content, {
     String? replyToMessageId,
-    List<String>? attachmentIds,
+    String? attachments, // JSON string format
   }) async {
     final box = _getBox();
     final pendingKey = '$_pendingMessagesKey$channelId';
@@ -137,7 +137,7 @@ class MessageCacheService {
       'channelId': channelId,
       'content': content,
       'replyToMessageId': replyToMessageId,
-      'attachmentIds': attachmentIds,
+      'attachments': attachments, // JSON string
       'timestamp': DateTime.now().toIso8601String(),
     });
     

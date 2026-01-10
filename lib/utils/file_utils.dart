@@ -1,4 +1,5 @@
 import 'dart:io';
+import '../core/config/app_config.dart';
 
 /// File utility functions
 class FileUtils {
@@ -66,9 +67,11 @@ class FileUtils {
       // Documents
       'pdf': 'application/pdf',
       'doc': 'application/msword',
-      'docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      'docx':
+          'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
       'xls': 'application/vnd.ms-excel',
-      'xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      'xlsx':
+          'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
       'txt': 'text/plain',
       'csv': 'text/csv',
       'zip': 'application/zip',
@@ -76,5 +79,49 @@ class FileUtils {
     };
 
     return mimeTypes[extension.toLowerCase()];
+  }
+
+  /// Transform MinIO URL for platform compatibility
+  /// - Development mode on Android: replaces `minio:9000` with `10.0.2.2:9000` (emulator)
+  /// - Production mode: uses reverse proxy path `/uploads` instead of direct port access
+  ///
+  /// Example:
+  /// - Input: `http://minio:9000/chord-uploads/file.mp4`
+  /// - Output (Android dev): `http://10.0.2.2:9000/chord-uploads/file.mp4`
+  /// - Output (Production): `https://chord.borak.dev/uploads/chord-uploads/file.mp4`
+  /// - Output (other): `http://minio:9000/chord-uploads/file.mp4` (unchanged)
+  static String transformMinioUrl(String url) {
+    try {
+      final uri = Uri.parse(url);
+      
+      // Check if this is a MinIO URL
+      if (uri.host == 'minio' && uri.port == 9000) {
+        if (AppConfig.isDevelopment && Platform.isAndroid) {
+          // Development mode on Android: use 10.0.2.2 for emulator
+          final transformedUri = uri.replace(host: '10.0.2.2');
+          final transformedUrl = transformedUri.toString();
+          print('🔄 [FileUtils] URL transform (dev/Android): $url -> $transformedUrl');
+          return transformedUrl;
+        } else if (AppConfig.isProduction) {
+          // Production mode: use reverse proxy path /uploads
+          // http://minio:9000/chord-uploads/... -> https://chord.borak.dev/uploads/chord-uploads/...
+          final transformedUri = Uri(
+            scheme: 'https',
+            host: 'chord.borak.dev',
+            path: '/uploads${uri.path}',
+            query: uri.query,
+            fragment: uri.fragment,
+          );
+          final transformedUrl = transformedUri.toString();
+          print('🔄 [FileUtils] URL transform (production): $url -> $transformedUrl');
+          return transformedUrl;
+        }
+      }
+      
+      return url;
+    } catch (e) {
+      print('⚠️ [FileUtils] Failed to parse URL: $url, error: $e');
+      return url;
+    }
   }
 }

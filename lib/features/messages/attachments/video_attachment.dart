@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:video_player/video_player.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'attachment_viewer.dart';
+import '../../../utils/file_utils.dart';
 
 /// Video attachment widget with thumbnail and player
 class VideoAttachment extends StatefulWidget {
@@ -49,7 +50,8 @@ class _VideoAttachmentState extends State<VideoAttachment> {
 
     // Otherwise, try to get first frame from video
     try {
-      _controller = VideoPlayerController.networkUrl(Uri.parse(widget.videoUrl));
+      final transformedUrl = FileUtils.transformMinioUrl(widget.videoUrl);
+      _controller = VideoPlayerController.networkUrl(Uri.parse(transformedUrl));
       await _controller!.initialize();
       
       if (mounted) {
@@ -85,10 +87,11 @@ class _VideoAttachmentState extends State<VideoAttachment> {
   Widget build(BuildContext context) {
     return GestureDetector(
       onTap: () {
+        final transformedUrl = FileUtils.transformMinioUrl(widget.videoUrl);
         Navigator.of(context).push(
           MaterialPageRoute(
             builder: (context) => AttachmentViewer(
-              videoUrl: widget.videoUrl,
+              videoUrl: transformedUrl,
               fileName: widget.fileName,
             ),
           ),
@@ -126,7 +129,7 @@ class _VideoAttachmentState extends State<VideoAttachment> {
                 )
               else if (_thumbnailUrl != null)
                 CachedNetworkImage(
-                  imageUrl: _thumbnailUrl!,
+                  imageUrl: FileUtils.transformMinioUrl(_thumbnailUrl!),
                   fit: BoxFit.cover,
                   errorWidget: (context, url, error) => Container(
                     color: Theme.of(context).colorScheme.surfaceContainerHighest,

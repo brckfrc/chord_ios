@@ -1,30 +1,28 @@
 /// Upload response DTO from backend
+/// Backend format: { url, type, size, name, duration, mimeType }
 class UploadResponseDto {
-  final String id;
   final String url;
-  final String? fileName;
-  final String? contentType;
-  final int? fileSize;
+  final String? name; // Backend'de "name", frontend'de "fileName" olarak kullanılabilir
+  final String? mimeType; // Backend'de "mimeType", frontend'de "contentType" olarak kullanılabilir
+  final int? size; // Backend'de "size", frontend'de "fileSize" olarak kullanılabilir
   final String? type; // "image", "video", "document"
   final int? duration; // Video için süre (saniye)
 
   UploadResponseDto({
-    required this.id,
     required this.url,
-    this.fileName,
-    this.contentType,
-    this.fileSize,
+    this.name,
+    this.mimeType,
+    this.size,
     this.type,
     this.duration,
   });
 
   factory UploadResponseDto.fromJson(Map<String, dynamic> json) {
     return UploadResponseDto(
-      id: json['id']?.toString() ?? '',
       url: json['url'] as String,
-      fileName: json['fileName'] as String?,
-      contentType: json['contentType'] as String?,
-      fileSize: json['fileSize'] as int?,
+      name: json['name'] as String?,
+      mimeType: json['mimeType'] as String?,
+      size: json['size'] as int?,
       type: json['type'] as String?,
       duration: json['duration'] as int?,
     );
@@ -32,13 +30,31 @@ class UploadResponseDto {
 
   Map<String, dynamic> toJson() {
     return {
-      'id': id,
       'url': url,
-      if (fileName != null) 'fileName': fileName,
-      if (contentType != null) 'contentType': contentType,
-      if (fileSize != null) 'fileSize': fileSize,
+      if (name != null) 'name': name,
+      if (mimeType != null) 'mimeType': mimeType,
+      if (size != null) 'size': size,
       if (type != null) 'type': type,
       if (duration != null) 'duration': duration,
+    };
+  }
+
+  // Convenience getters for backward compatibility
+  String? get fileName => name;
+  String? get contentType => mimeType;
+  int? get fileSize => size;
+
+  /// Convert to MessageAttachmentDto for pending messages
+  /// Note: This creates a temporary attachment DTO for UI display
+  /// The actual attachment will come from backend in the message response
+  Map<String, dynamic> toAttachmentJson() {
+    return {
+      'url': url,
+      'type': type ?? 'document',
+      'size': size ?? 0,
+      'name': name ?? '',
+      if (duration != null) 'duration': duration,
+      if (mimeType != null) 'mimeType': mimeType,
     };
   }
 }

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'attachment_viewer.dart';
+import '../../../utils/file_utils.dart';
 
 /// Image attachment widget with thumbnail and full screen viewer
 class ImageAttachment extends StatelessWidget {
@@ -21,10 +22,11 @@ class ImageAttachment extends StatelessWidget {
   Widget build(BuildContext context) {
     return GestureDetector(
       onTap: () {
+        final transformedUrl = FileUtils.transformMinioUrl(imageUrl);
         Navigator.of(context).push(
           MaterialPageRoute(
             builder: (context) => AttachmentViewer(
-              imageUrl: imageUrl,
+              imageUrl: transformedUrl,
               fileName: fileName,
             ),
           ),
@@ -45,7 +47,7 @@ class ImageAttachment extends StatelessWidget {
         child: ClipRRect(
           borderRadius: BorderRadius.circular(8),
           child: CachedNetworkImage(
-            imageUrl: imageUrl,
+            imageUrl: FileUtils.transformMinioUrl(imageUrl),
             fit: BoxFit.cover,
             placeholder: (context, url) => Container(
               color: Theme.of(context).colorScheme.surfaceContainerHighest,

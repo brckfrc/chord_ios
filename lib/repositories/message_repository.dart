@@ -220,39 +220,77 @@ class MessageRepository {
         channelId,
         dto.content,
         replyToMessageId: dto.replyToMessageId,
-        attachmentIds: dto.attachmentIds,
+        attachments: dto.attachments,
       );
       return null; // Return null to indicate message is queued
     }
 
     try {
+      print('📤 [MessageRepository] Sending message to backend');
+      print('📤 [MessageRepository] Request payload: ${dto.toJson()}');
+      
       final response = await _apiClient.post(
         '/channels/$channelId/messages',
         data: dto.toJson(),
       );
+      
+      print('📥 [MessageRepository] Backend response received');
+      print('📥 [MessageRepository] Response status: ${response.statusCode}');
+      print('📥 [MessageRepository] Response data type: ${response.data.runtimeType}');
+      print('📥 [MessageRepository] Response data (full): ${response.data}');
+      
+      if (response.data is Map<String, dynamic>) {
+        final responseMap = response.data as Map<String, dynamic>;
+        print('📥 [MessageRepository] Response data keys: ${responseMap.keys.toList()}');
+        print('📥 [MessageRepository] Response attachments (lowercase): ${responseMap['attachments']} (type: ${responseMap['attachments']?.runtimeType})');
+        print('📥 [MessageRepository] Response Attachments (capital): ${responseMap['Attachments']} (type: ${responseMap['Attachments']?.runtimeType})');
+        print('📥 [MessageRepository] All response fields:');
+        responseMap.forEach((key, value) {
+          print('📥 [MessageRepository]   - $key: $value (type: ${value.runtimeType})');
+        });
+      }
+      
       final message = MessageDto.fromJson(
         response.data as Map<String, dynamic>,
       );
+      
+      print('✅ [MessageRepository] Message parsed: id=${message.id}, attachments=${message.attachments?.length ?? 0}');
+      if (message.attachments != null && message.attachments!.isNotEmpty) {
+        print('✅ [MessageRepository] First attachment: url=${message.attachments!.first.url}, type=${message.attachments!.first.type}, fileName=${message.attachments!.first.fileName}');
+      } else {
+        print('⚠️ [MessageRepository] No attachments in parsed message');
+      }
 
       // Cache the new message
       await MessageCacheService.saveMessage(message);
 
       return message;
     } on DioException catch (e) {
+      print('❌ [MessageRepository] DioException occurred');
+      print('❌ [MessageRepository] Exception type: ${e.type}');
+      print('❌ [MessageRepository] Error message: ${e.message}');
+      print('❌ [MessageRepository] Response status: ${e.response?.statusCode}');
+      print('❌ [MessageRepository] Response data: ${e.response?.data}');
+      print('❌ [MessageRepository] Request path: ${e.requestOptions.path}');
+      print('❌ [MessageRepository] Request data: ${e.requestOptions.data}');
+      
       // If network error, add to pending queue
       if (e.type == DioExceptionType.connectionError) {
+        print('⚠️ [MessageRepository] Network error, adding to pending queue');
         await MessageCacheService.addPendingMessage(
           channelId,
           dto.content,
           replyToMessageId: dto.replyToMessageId,
-          attachmentIds: dto.attachmentIds,
+          attachments: dto.attachments,
         );
         return null;
       }
       throw Exception(
         e.response?.data['message'] ?? 'Failed to create message',
       );
-    } catch (e) {
+    } catch (e, stackTrace) {
+      print('❌ [MessageRepository] General exception: $e');
+      print('❌ [MessageRepository] Stack trace: $stackTrace');
       throw Exception('Failed to create message: ${e.toString()}');
     }
   }
@@ -327,9 +365,7 @@ class MessageRepository {
         final dto = CreateMessageDto(
           content: pending['content'] as String,
           replyToMessageId: pending['replyToMessageId'] as String?,
-          attachmentIds: pending['attachmentIds'] != null
-              ? List<String>.from(pending['attachmentIds'] as List)
-              : null,
+          attachments: pending['attachments'] as String?, // JSON string
         );
         await createMessage(channelId, dto);
       } catch (e) {
@@ -482,7 +518,7 @@ class MessageRepository {
         dmId,
         dto.content,
         replyToMessageId: dto.replyToMessageId,
-        attachmentIds: dto.attachmentIds,
+        attachments: dto.attachments,
       );
       return null; // Return null to indicate message is queued
     }
@@ -507,7 +543,7 @@ class MessageRepository {
           dmId,
           dto.content,
           replyToMessageId: dto.replyToMessageId,
-          attachmentIds: dto.attachmentIds,
+          attachments: dto.attachments,
         );
         return null;
       }
@@ -589,9 +625,7 @@ class MessageRepository {
         final dto = CreateMessageDto(
           content: pending['content'] as String,
           replyToMessageId: pending['replyToMessageId'] as String?,
-          attachmentIds: pending['attachmentIds'] != null
-              ? List<String>.from(pending['attachmentIds'] as List)
-              : null,
+          attachments: pending['attachments'] as String?, // JSON string
         );
         await createDMMessage(dmId, dto);
       } catch (e) {

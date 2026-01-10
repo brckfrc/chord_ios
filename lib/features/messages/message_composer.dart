@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -12,7 +13,6 @@ import '../../models/guild/guild_member_dto.dart';
 import '../../repositories/guild_repository.dart';
 import '../../repositories/upload_repository.dart';
 import '../../models/upload/upload_response_dto.dart';
-import '../../utils/file_utils.dart';
 import 'attachments/upload_progress_indicator.dart';
 
 /// Message composer widget with typing indicator and @ mention autocomplete
@@ -50,7 +50,8 @@ class _MessageComposerState extends ConsumerState<MessageComposer> {
   // File upload state
   List<XFile> _selectedFiles = [];
   List<UploadResponseDto> _uploadedAttachments = [];
-  Map<String, double> _uploadProgress = {}; // file path -> progress (0.0 to 1.0)
+  Map<String, double> _uploadProgress =
+      {}; // file path -> progress (0.0 to 1.0)
   Map<String, bool> _uploadErrors = {}; // file path -> has error
 
   @override
@@ -520,9 +521,8 @@ class _MessageComposerState extends ConsumerState<MessageComposer> {
   }
 
   /// Upload all selected files
-  Future<List<String>> _uploadFiles() async {
-    final uploadedIds = <String>[];
-
+  /// Returns list of uploaded attachments (not IDs, since backend doesn't use IDs)
+  Future<void> _uploadFiles() async {
     for (final file in _selectedFiles) {
       if (_uploadErrors[file.path] == true) continue; // Skip files with errors
 
@@ -538,7 +538,6 @@ class _MessageComposerState extends ConsumerState<MessageComposer> {
           },
         );
 
-        uploadedIds.add(uploadResponse.id);
         setState(() {
           _uploadedAttachments.add(uploadResponse);
           _uploadProgress[file.path] = 1.0;
@@ -557,8 +556,6 @@ class _MessageComposerState extends ConsumerState<MessageComposer> {
         }
       }
     }
-
-    return uploadedIds;
   }
 
   Future<void> _sendMessage() async {
@@ -581,16 +578,53 @@ class _MessageComposerState extends ConsumerState<MessageComposer> {
 
     try {
       // Upload files first if any
-      List<String> attachmentIds = [];
       if (_selectedFiles.isNotEmpty) {
-        attachmentIds = await _uploadFiles();
+        await _uploadFiles();
+      }
+
+      // Create attachments JSON string from uploaded files
+      String? attachmentsJson;
+      if (_uploadedAttachments.isNotEmpty) {
+        print(
+          '📎 [MessageComposer] Creating attachments JSON from ${_uploadedAttachments.length} uploaded files',
+        );
+        final attachmentsList = _uploadedAttachments.map((upload) {
+          final attachmentData = {
+            'url': upload.url,
+            'type': upload.type ?? 'document',
+            'size': upload.size ?? 0,
+            'name': upload.name ?? '',
+            if (upload.duration != null) 'duration': upload.duration,
+          };
+          print('📎 [MessageComposer] Attachment data: $attachmentData');
+          return attachmentData;
+        }).toList();
+        attachmentsJson = jsonEncode(attachmentsList);
+        print('📎 [MessageComposer] Attachments JSON string: $attachmentsJson');
+      } else {
+        print('📎 [MessageComposer] No uploaded attachments');
+      }
+
+      // Ensure content has at least 1 character when attachments are present
+      // Backend requires MinimumLength = 1 even with attachments
+      // Use zero-width space (\u200B) instead of regular space because ASP.NET Core
+      // model validation may trim or reject regular spaces
+      String finalContent = content;
+      if (finalContent.isEmpty && _uploadedAttachments.isNotEmpty) {
+        finalContent =
+            "\u200B"; // Zero-width space: invisible but satisfies backend validation
+        print(
+          '📝 [MessageComposer] Content was empty, using zero-width space for attachment-only message',
+        );
       }
 
       final dto = CreateMessageDto(
-        content: content,
-        attachmentIds: attachmentIds.isNotEmpty ? attachmentIds : null,
+        content: finalContent,
+        attachments: attachmentsJson,
       );
-      
+
+      print('📤 [MessageComposer] Sending message with DTO: ${dto.toJson()}');
+
       // Use DM message methods if guildId is null (DM), otherwise use channel message
       if (widget.guildId == null) {
         await ref
@@ -687,10 +721,9 @@ class _MessageComposerState extends ConsumerState<MessageComposer> {
                             border: Border.all(
                               color: hasError
                                   ? Theme.of(context).colorScheme.error
-                                  : Theme.of(context)
-                                      .colorScheme
-                                      .outline
-                                      .withOpacity(0.2),
+                                  : Theme.of(
+                                      context,
+                                    ).colorScheme.outline.withOpacity(0.2),
                               width: 1,
                             ),
                           ),
@@ -700,8 +733,9 @@ class _MessageComposerState extends ConsumerState<MessageComposer> {
                                 ? Image.file(
                                     File(file.path),
                                     fit: BoxFit.cover,
-                                    errorBuilder: (context, error, stackTrace) =>
-                                        const Icon(Icons.broken_image),
+                                    errorBuilder:
+                                        (context, error, stackTrace) =>
+                                            const Icon(Icons.broken_image),
                                   )
                                 : const Icon(Icons.videocam),
                           ),
@@ -745,10 +779,9 @@ class _MessageComposerState extends ConsumerState<MessageComposer> {
                           Positioned.fill(
                             child: Container(
                               decoration: BoxDecoration(
-                                color: Theme.of(context)
-                                    .colorScheme
-                                    .error
-                                    .withOpacity(0.3),
+                                color: Theme.of(
+                                  context,
+                                ).colorScheme.error.withOpacity(0.3),
                                 borderRadius: BorderRadius.circular(8),
                               ),
                               child: const Icon(
@@ -764,17 +797,21 @@ class _MessageComposerState extends ConsumerState<MessageComposer> {
                 // Upload progress indicators
                 if (_uploadProgress.values.any((p) => p > 0.0 && p < 1.0))
                   ..._selectedFiles
-                      .where((file) =>
-                          (_uploadProgress[file.path] ?? 0.0) > 0.0 &&
-                          (_uploadProgress[file.path] ?? 0.0) < 1.0)
-                      .map((file) => Padding(
-                            padding: const EdgeInsets.only(top: 8),
-                            child: UploadProgressIndicator(
-                              progress: _uploadProgress[file.path] ?? 0.0,
-                              fileName: file.name,
-                              onCancel: () => _removeFile(file),
-                            ),
-                          )),
+                      .where(
+                        (file) =>
+                            (_uploadProgress[file.path] ?? 0.0) > 0.0 &&
+                            (_uploadProgress[file.path] ?? 0.0) < 1.0,
+                      )
+                      .map(
+                        (file) => Padding(
+                          padding: const EdgeInsets.only(top: 8),
+                          child: UploadProgressIndicator(
+                            progress: _uploadProgress[file.path] ?? 0.0,
+                            fileName: file.name,
+                            onCancel: () => _removeFile(file),
+                          ),
+                        ),
+                      ),
               ],
             ),
           ),

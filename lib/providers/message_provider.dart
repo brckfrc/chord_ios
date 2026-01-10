@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/message/message_dto.dart';
 import '../models/message/direct_message_dto.dart';
@@ -165,7 +166,13 @@ class MessageNotifier extends StateNotifier<MessageState> {
       if (args != null && args.isNotEmpty) {
         try {
           final messageJson = args[0] as Map<String, dynamic>;
+          print('🔔 [MessageProvider] ReceiveMessage event received');
+          print('🔔 [MessageProvider] Message JSON keys: ${messageJson.keys.toList()}');
+          print('🔔 [MessageProvider] Attachments field: ${messageJson['attachments']} (type: ${messageJson['attachments']?.runtimeType})');
+          
           final message = MessageDto.fromJson(messageJson);
+          
+          print('🔔 [MessageProvider] Parsed message: id=${message.id}, attachments=${message.attachments?.length ?? 0}');
 
           // Check if we have a pending message with same content from current user
           final channelMessages =
@@ -183,6 +190,9 @@ class MessageNotifier extends StateNotifier<MessageState> {
             );
 
             if (pendingIndex >= 0) {
+              print('🔄 [MessageProvider] Replacing pending message with real message');
+              print('🔄 [MessageProvider] Pending attachments: ${channelMessages[pendingIndex].attachments?.length ?? 0}');
+              print('🔄 [MessageProvider] Real message attachments: ${message.attachments?.length ?? 0}');
               // Replace pending message with real message
               _replacePendingMessage(
                 message.channelId,
@@ -194,8 +204,11 @@ class MessageNotifier extends StateNotifier<MessageState> {
           }
 
           // Normal add (not replacing pending)
+          print('➕ [MessageProvider] Adding new message to channel');
           _addMessageToChannel(message.channelId, message);
-        } catch (e) {
+        } catch (e, stackTrace) {
+          print('❌ [MessageProvider] Error parsing ReceiveMessage: $e');
+          print('❌ [MessageProvider] Stack trace: $stackTrace');
           // Ignore parsing errors
         }
       }
@@ -519,6 +532,22 @@ class MessageNotifier extends StateNotifier<MessageState> {
 
     // Create pending message immediately (optimistic update)
     final pendingId = 'pending_${DateTime.now().millisecondsSinceEpoch}';
+    
+    // Parse attachments from DTO for pending message display
+    List<MessageAttachmentDto>? pendingAttachments;
+    if (dto.attachments != null && dto.attachments!.isNotEmpty) {
+      try {
+        final decoded = jsonDecode(dto.attachments!);
+        if (decoded is List) {
+          pendingAttachments = decoded
+              .map((a) => MessageAttachmentDto.fromJson(a as Map<String, dynamic>))
+              .toList();
+        }
+      } catch (e) {
+        // Ignore parse errors for pending message
+      }
+    }
+    
     final pendingMessage = MessageDto(
       id: pendingId,
       channelId: channelId,
@@ -526,6 +555,7 @@ class MessageNotifier extends StateNotifier<MessageState> {
       content: dto.content,
       createdAt: DateTime.now(),
       user: currentUser,
+      attachments: pendingAttachments,
       isPending: true, // Mark as pending
     );
 
@@ -832,6 +862,22 @@ class MessageNotifier extends StateNotifier<MessageState> {
 
     // Create pending message immediately (optimistic update)
     final pendingId = 'pending_${DateTime.now().millisecondsSinceEpoch}';
+    
+    // Parse attachments from DTO for pending message display
+    List<MessageAttachmentDto>? pendingAttachments;
+    if (dto.attachments != null && dto.attachments!.isNotEmpty) {
+      try {
+        final decoded = jsonDecode(dto.attachments!);
+        if (decoded is List) {
+          pendingAttachments = decoded
+              .map((a) => MessageAttachmentDto.fromJson(a as Map<String, dynamic>))
+              .toList();
+        }
+      } catch (e) {
+        // Ignore parse errors for pending message
+      }
+    }
+    
     final pendingMessage = MessageDto(
       id: pendingId,
       channelId: dmId,
@@ -839,6 +885,7 @@ class MessageNotifier extends StateNotifier<MessageState> {
       content: dto.content,
       createdAt: DateTime.now(),
       user: currentUser,
+      attachments: pendingAttachments,
       isPending: true, // Mark as pending
     );
 

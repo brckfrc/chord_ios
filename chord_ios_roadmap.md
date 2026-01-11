@@ -266,6 +266,7 @@
 **Frontend Referans**: `VoiceBar.tsx`, `VoiceChannelUsers.tsx`, `UserProfileBar.tsx`
 
 **Not**:
+
 - Voice channel users list below channels eklendi (Discord benzeri, her voice channel'ın altında kullanıcı listesi)
 - Multi-channel participants support eklendi (`participantsByChannel` Map ile tüm channel'lar için participant tracking)
 - Real-time updates düzeltildi (`getParticipantsForChannel` metodunda yeni liste kopyası döndürme, Riverpod state detection)
@@ -323,6 +324,7 @@
 **Frontend Referans**: WebRTC LiveKit logic (FAZ 8'de yapıldı)
 
 **Not**:
+
 - LiveKit SFU mimarisi kullanılıyor (P2P mesh yerine, ölçeklenebilirlik için)
 - Backend'de LiveKit token generation hazır (`/api/voice/token` endpoint)
 - Temel LiveKit bağlantısı FAZ 6'da tamamlandı
@@ -353,6 +355,7 @@
 ✅ Speaking indicators iyileştirildi (glow effects, smooth animations)
 
 **Detaylı Notlar**:
+
 - **Connection Retry**: Exponential backoff algoritması iyileştirildi (2s, 4s, 8s, 16s, 32s), max retry 5'e çıkarıldı, retry reason tracking eklendi (network, token, livekit, unknown)
 - **Haptic Feedback**: Mute/unmute için `lightImpact()`, deafen için `mediumImpact()`, disconnect için `heavyImpact()` eklendi
 - **Visual Feedback**: Button animations (`AnimatedContainer`, `AnimatedDefaultTextStyle`), toast notifications (mute/unmute/deafen durumları için)
@@ -366,6 +369,7 @@
 - **Leave Channel Bug Fix**: `leaveVoiceChannel` sırasında disconnect event'lerinin state'i değiştirmesini engellemek için `_isLeavingChannel` flag eklendi
 
 **Bilinen Sorunlar**:
+
 - ⚠️ **WebRTC Connection Stability**: WebRTC peer connection başarısız oluyor (`onConnectionChangeFAILED`), ses gelmiyor. LiveKit room event'leri gelmiyor, manuel reconnection gerekli. Detaylı çözüm planı: `webrtc_audio_fix_&_friends_feature_209fe5ac.plan.md`
 
 ---
@@ -378,6 +382,7 @@
 **Backend Bağımlılığı**: ✅ Friends API'leri hazır (FAZ 9.5 backend'de tamamlandı)
 
 **Not**:
+
 - WebRTC connection stability iyileştirildi (connection state monitoring, otomatik reconnection, audio tracks check)
 - VoiceBar disconnect sorunu çözüldü (null değerler doğru set ediliyor, VoiceState.copyWith sorunu giderildi)
 - Participant fetch loop sorunu çözüldü (sadece yeni guild'ler eklendiğinde fetch yapılıyor)
@@ -440,6 +445,7 @@
 **Frontend Referans**: File upload logic (FAZ 7'de yapıldı)
 
 **Not**:
+
 - Image, video ve document (PDF, Word, Excel, TXT, CSV, ZIP, RAR) upload desteği eklendi
 - Video thumbnail aspect ratio düzeltmesi yapıldı (4:3, 16:9, 1:1 gibi farklı aspect ratio'lar doğru gösteriliyor)
 - Upload sırasında dosya türüne göre doğru icon gösterimi eklendi (image/video/document)
@@ -476,6 +482,7 @@
 **Backend Bağımlılığı**: ✅ FAZ 5.5 (Mentions) - Backend'de mentions tamamlandı
 
 **Not**:
+
 - Local notifications (foreground) implementasyonu tamamlandı
 - `flutter_local_notifications` package kullanılıyor
 - Notification preferences sistemi eklendi (channel ve DM için ayrı ayarlar)
@@ -512,6 +519,7 @@
 **Backend Bağımlılığı**: ✅ FAZ 5.5 (Mentions) - Backend'de mentions tamamlandı
 
 **Not**:
+
 - Push notifications (FCM/APNs) şimdilik yapılmayacak
 - Local notifications (FAZ 9) foreground için yeterli
 - Gelecekte backend'de FCM token yönetimi ve push notification endpoint'leri eklendiğinde implement edilebilir

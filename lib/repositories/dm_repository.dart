@@ -1,3 +1,5 @@
+import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart';
 import '../models/dm/dm_dto.dart';
 import '../services/api/api_client.dart';
 
@@ -56,10 +58,24 @@ class DMRepository {
   /// Create a new DM with a user
   Future<DMDto> createDM(String userId) async {
     try {
-      final response = await _apiClient.post('/DMs/$userId');
+      debugPrint('[DMRepository] Creating DM with user: $userId');
+      final response = await _apiClient.post('/dms/users/$userId');
+      debugPrint('[DMRepository] DM created successfully: ${response.data['id']}');
       return DMDto.fromJson(response.data as Map<String, dynamic>);
+    } on DioException catch (e) {
+      debugPrint(
+        '[DMRepository] DioException: ${e.type}, status: ${e.response?.statusCode}, message: ${e.response?.data}',
+      );
+      // Backend'den gelen error message'ı kullan
+      final errorMessage = e.response?.data?['message'] as String?;
+      if (errorMessage != null) {
+        throw Exception(errorMessage);
+      }
+      // Fallback: generic error message
+      throw Exception('Failed to create DM: ${e.message ?? 'Unknown error'}');
     } catch (e) {
-      throw Exception('Failed to create DM: $e');
+      debugPrint('[DMRepository] General exception: $e');
+      throw Exception('Failed to create DM: ${e.toString()}');
     }
   }
 

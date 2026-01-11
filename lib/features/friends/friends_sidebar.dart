@@ -4,10 +4,12 @@ import 'package:go_router/go_router.dart';
 import '../../providers/dm_provider.dart';
 import '../../providers/friends_provider.dart';
 import '../../providers/auth_provider.dart';
+import '../../providers/presence_provider.dart';
 import '../../models/dm/dm_dto.dart';
-import '../../models/friends/friendship_dto.dart';
 import '../../models/auth/user_status.dart';
+import '../../models/auth/user_dto.dart';
 import '../../shared/widgets/app_loading.dart';
+import 'add_friend_modal.dart';
 
 /// Friends sidebar widget (shows DM list)
 class FriendsSidebar extends ConsumerStatefulWidget {
@@ -32,15 +34,49 @@ class _FriendsSidebarState extends ConsumerState<FriendsSidebar> {
     final dmState = ref.watch(dmProvider);
     final friendsState = ref.watch(friendsProvider);
     final authState = ref.watch(authProvider);
+    final presenceState = ref.watch(presenceProvider);
     final currentUserId = authState.user?.id ?? '';
     final location = GoRouterState.of(context).uri.path;
     final isFriendsActive = location == '/me';
 
-    // Get friends from friends provider
-    final friends = friendsState.friends
-        .map((f) => f.getOtherUser(currentUserId))
-        .where((user) => user != null)
-        .toList();
+    // Get friends from friends provider OR from DMs if friends list is empty
+    final friends = <UserDto>[];
+    final seenUserIds = <String>{};
+
+    // First try to get from friends provider
+    debugPrint('[FriendsSidebar] currentUserId: $currentUserId');
+    for (final f in friendsState.friends) {
+      debugPrint(
+        '[FriendsSidebar] Friendship: id=${f.id}, requesterId=${f.requesterId}, addresseeId=${f.addresseeId}',
+      );
+      final user = f.getOtherUser(currentUserId);
+      debugPrint(
+        '[FriendsSidebar] getOtherUser result: ${user?.id ?? "null"}, name=${user?.displayName ?? user?.username ?? "null"}',
+      );
+      if (user != null && !seenUserIds.contains(user.id)) {
+        seenUserIds.add(user.id);
+        // Get current status: use presence state if available, otherwise use backend status
+        final presenceStatus = presenceState.userStatuses[user.id];
+        final currentStatus = presenceStatus ?? user.status;
+        // Create a copy with updated status
+        final updatedUser = user.copyWith(status: currentStatus);
+        friends.add(updatedUser);
+      }
+    }
+
+    // If friends list is empty or to supplement, get from DMs
+    for (final dm in dmState.dms) {
+      final otherUser = dm.otherUser;
+      if (otherUser != null && !seenUserIds.contains(otherUser.id)) {
+        seenUserIds.add(otherUser.id);
+        // Get current status: use presence state if available, otherwise use backend status
+        final presenceStatus = presenceState.userStatuses[otherUser.id];
+        final currentStatus = presenceStatus ?? otherUser.status;
+        // Create a copy with updated status
+        final updatedUser = otherUser.copyWith(status: currentStatus);
+        friends.add(updatedUser);
+      }
+    }
 
     // Sort friends: Online > Idle > DND > Offline > Invisible
     friends.sort((a, b) {
@@ -51,10 +87,40 @@ class _FriendsSidebarState extends ConsumerState<FriendsSidebar> {
         UserStatus.offline: 3,
         UserStatus.invisible: 4,
       };
-      final aOrder = statusOrder[a!.status] ?? 3;
-      final bOrder = statusOrder[b!.status] ?? 3;
+      final aOrder = statusOrder[a.status] ?? 3;
+      final bOrder = statusOrder[b.status] ?? 3;
       return aOrder.compareTo(bOrder);
     });
+
+    // Filter to show only active friends (online + idle)
+    final activeFriends = friends
+        .where(
+          (f) => f.status == UserStatus.online || f.status == UserStatus.idle,
+        )
+        .toList();
+
+    // Debug: Print status info
+    debugPrint(
+      '[FriendsSidebar] Friends from provider: ${friendsState.friends.length}',
+    );
+    debugPrint('[FriendsSidebar] DMs count: ${dmState.dms.length}');
+    debugPrint('[FriendsSidebar] Total friends: ${friends.length}');
+    debugPrint(
+      '[FriendsSidebar] Active friends (online/idle): ${activeFriends.length}',
+    );
+    debugPrint(
+      '[FriendsSidebar] Presence state userStatuses: ${presenceState.userStatuses}',
+    );
+    for (final dm in dmState.dms) {
+      debugPrint(
+        '[FriendsSidebar] DM: id=${dm.id}, otherUser=${dm.otherUser?.id ?? "null"}, otherUser name=${dm.otherUser?.displayName ?? dm.otherUser?.username ?? "null"}',
+      );
+    }
+    for (final friend in friends) {
+      debugPrint(
+        '[FriendsSidebar] Friend: ${friend.displayName ?? friend.username}, Status: ${friend.status}',
+      );
+    }
 
     return Container(
       color: Theme.of(context).colorScheme.surface,
@@ -71,10 +137,7 @@ class _FriendsSidebarState extends ConsumerState<FriendsSidebar> {
               padding: const EdgeInsets.symmetric(horizontal: 16),
               decoration: BoxDecoration(
                 border: Border(
-                  bottom: BorderSide(
-                    color: const Color(0xFF1F2023),
-                    width: 1,
-                  ),
+                  bottom: BorderSide(color: const Color(0xFF1F2023), width: 1),
                 ),
               ),
               child: Row(
@@ -84,7 +147,9 @@ class _FriendsSidebarState extends ConsumerState<FriendsSidebar> {
                     size: 20, // Match Guild Header icon size
                     color: isFriendsActive
                         ? Theme.of(context).colorScheme.primary
-                        : Theme.of(context).colorScheme.onSurface.withOpacity(0.8),
+                        : Theme.of(
+                            context,
+                          ).colorScheme.onSurface.withOpacity(0.8),
                   ),
                   const SizedBox(width: 8),
                   Expanded(
@@ -119,83 +184,168 @@ class _FriendsSidebarState extends ConsumerState<FriendsSidebar> {
                         ),
                       ),
                     ),
+                  const SizedBox(width: 8),
+                  // Add Friend button
+                  IconButton(
+                    icon: const Icon(Icons.person_add, size: 20),
+                    onPressed: () {
+                      showDialog(
+                        context: context,
+                        barrierColor: Colors.black.withOpacity(0.7),
+                        builder: (context) => AddFriendModal(
+                          open: true,
+                          onOpenChange: (open) {
+                            if (!open) {
+                              Navigator.of(context).pop();
+                            }
+                          },
+                        ),
+                      );
+                    },
+                    tooltip: 'Add Friend',
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(),
+                    color: Theme.of(
+                      context,
+                    ).colorScheme.onSurface.withOpacity(0.8),
+                  ),
                 ],
               ),
             ),
           ),
-          // Horizontal Friend List
-          if (friends.isNotEmpty)
+          // Horizontal Active Friends List (Online + Idle)
+          if (activeFriends.isNotEmpty)
             Container(
-              height: 80,
+              height: 85,
               padding: const EdgeInsets.symmetric(vertical: 8),
               decoration: const BoxDecoration(
                 border: Border(
-                  bottom: BorderSide(
-                    color: Color(0xFF1F2023),
-                    width: 1,
-                  ),
+                  bottom: BorderSide(color: Color(0xFF1F2023), width: 1),
                 ),
               ),
               child: ListView.separated(
                 padding: const EdgeInsets.symmetric(horizontal: 16),
                 scrollDirection: Axis.horizontal,
-                itemCount: friends.length,
+                itemCount: activeFriends.length,
                 separatorBuilder: (context, index) => const SizedBox(width: 12),
                 itemBuilder: (context, index) {
-                  final friend = friends[index]!;
-                  return Column(
-                    children: [
-                      Stack(
+                  final friend = activeFriends[index];
+                  return InkWell(
+                    onTap: () async {
+                      // Mevcut DM'lerde bu kullanıcıyla DM var mı kontrol et
+                      final dmState = ref.read(dmProvider);
+                      final existingDMs = dmState.dms
+                          .where((dm) => dm.otherUserId == friend.id)
+                          .toList();
+                      final existingDM =
+                          existingDMs.isNotEmpty ? existingDMs.first : null;
+
+                      if (existingDM != null) {
+                        // Mevcut DM varsa, o DM'e git
+                        ref.read(dmProvider.notifier).setSelectedDM(existingDM.id);
+                        context.go('/me/dm/${existingDM.id}');
+                      } else {
+                        // DM yoksa, yeni DM oluştur
+                        try {
+                          final newDM =
+                              await ref.read(dmProvider.notifier).createDM(friend.id);
+                          if (newDM != null) {
+                            // DM listesini yenile (yeni oluşturulan DM'in görünmesi için)
+                            await ref.read(dmProvider.notifier).fetchDMs();
+                            ref.read(dmProvider.notifier).setSelectedDM(newDM.id);
+                            context.go('/me/dm/${newDM.id}');
+                          } else {
+                            // Error state - inform user
+                            if (mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text(
+                                    'Failed to create DM. Please try again.',
+                                  ),
+                                  backgroundColor:
+                                      Theme.of(context).colorScheme.error,
+                                ),
+                              );
+                            }
+                          }
+                        } catch (e) {
+                          // Exception state - inform user
+                          if (mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text(
+                                  e.toString().replaceFirst('Exception: ', ''),
+                                ),
+                                backgroundColor:
+                                    Theme.of(context).colorScheme.error,
+                              ),
+                            );
+                          }
+                        }
+                      }
+                    },
+                    borderRadius: BorderRadius.circular(8),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+                      child: Column(
                         children: [
-                          Container(
-                            width: 40,
-                            height: 40,
-                            decoration: BoxDecoration(
-                              color: Theme.of(context).colorScheme.primary,
-                              borderRadius: BorderRadius.circular(20),
-                            ),
-                            child: Center(
-                              child: Text(
-                                (friend.displayName?.isNotEmpty ?? false)
-                                    ? friend.displayName![0].toUpperCase()
-                                    : '?',
-                                style: TextStyle(
-                                  color: Theme.of(context).colorScheme.onPrimary,
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.bold,
+                          Stack(
+                            children: [
+                              Container(
+                                width: 40,
+                                height: 40,
+                                decoration: BoxDecoration(
+                                  color: Theme.of(context).colorScheme.primary,
+                                  borderRadius: BorderRadius.circular(20),
+                                ),
+                                child: Center(
+                                  child: Text(
+                                    (friend.displayName?.isNotEmpty ?? false)
+                                        ? friend.displayName![0].toUpperCase()
+                                        : '?',
+                                    style: TextStyle(
+                                      color: Theme.of(
+                                        context,
+                                      ).colorScheme.onPrimary,
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
                                 ),
                               ),
-                            ),
+                              Positioned(
+                                bottom: 0,
+                                right: 0,
+                                child: Container(
+                                  width: 12,
+                                  height: 12,
+                                  decoration: BoxDecoration(
+                                    color: _getStatusColor(friend.status),
+                                    shape: BoxShape.circle,
+                                    border: Border.all(
+                                      color: Theme.of(context).colorScheme.surface,
+                                      width: 2,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ],
                           ),
-                          Positioned(
-                            bottom: 0,
-                            right: 0,
-                            child: Container(
-                              width: 12,
-                              height: 12,
-                              decoration: BoxDecoration(
-                                color: _getStatusColor(friend.status),
-                                shape: BoxShape.circle,
-                                border: Border.all(
-                                  color: Theme.of(context).colorScheme.surface,
-                                  width: 2,
-                                ),
-                              ),
+                          const SizedBox(height: 4),
+                          Text(
+                            friend.displayName ?? 'Unknown',
+                            style: TextStyle(
+                              fontSize: 10,
+                              color: Theme.of(
+                                context,
+                              ).colorScheme.onSurface.withOpacity(0.7),
                             ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
                           ),
                         ],
                       ),
-                      const SizedBox(height: 4),
-                      Text(
-                        friend.displayName ?? 'Unknown',
-                        style: TextStyle(
-                          fontSize: 10,
-                          color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7),
-                        ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ],
+                    ),
                   );
                 },
               ),
@@ -205,53 +355,54 @@ class _FriendsSidebarState extends ConsumerState<FriendsSidebar> {
             child: dmState.isLoading
                 ? const Center(child: AppLoading())
                 : dmState.dms.isEmpty
-                    ? Center(
-                        child: Padding(
-                          padding: const EdgeInsets.all(16),
-                          child: Text(
-                            'No DMs yet',
-                            style: TextStyle(
-                              color: Theme.of(context)
-                                  .colorScheme
-                                  .onSurface
-                                  .withOpacity(0.6),
-                              fontSize: 14,
-                            ),
+                ? Center(
+                    child: Padding(
+                      padding: const EdgeInsets.all(16),
+                      child: Text(
+                        'No DMs yet',
+                        style: TextStyle(
+                          color: Theme.of(
+                            context,
+                          ).colorScheme.onSurface.withOpacity(0.6),
+                          fontSize: 14,
+                        ),
+                      ),
+                    ),
+                  )
+                : ListView(
+                    padding: const EdgeInsets.all(8),
+                    children: [
+                      Padding(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 4,
+                        ),
+                        child: Text(
+                          'DIRECT MESSAGES',
+                          style: TextStyle(
+                            fontSize:
+                                11, // Match Channel Sidebar Section Header
+                            fontWeight: FontWeight.w700,
+                            color: Theme.of(
+                              context,
+                            ).colorScheme.onSurface.withOpacity(0.6),
+                            letterSpacing: 0.5,
                           ),
                         ),
-                      )
-                    : ListView(
-                        padding: const EdgeInsets.all(8),
-                        children: [
-                          Padding(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 8,
-                              vertical: 4,
-                            ),
-                            child: Text(
-                              'DIRECT MESSAGES',
-                              style: TextStyle(
-                                fontSize: 11, // Match Channel Sidebar Section Header
-                                fontWeight: FontWeight.w700,
-                                color: Theme.of(context)
-                                    .colorScheme
-                                    .onSurface
-                                    .withOpacity(0.6),
-                                letterSpacing: 0.5,
-                              ),
-                            ),
-                          ),
-                          const SizedBox(height: 4),
-                          ...dmState.dms.map((dm) => _DMItem(
-                                dm: dm,
-                                isSelected: dmState.selectedDMId == dm.id,
-                                onTap: () {
-                                  ref.read(dmProvider.notifier).setSelectedDM(dm.id);
-                                  context.go('/me/dm/${dm.id}');
-                                },
-                              )),
-                        ],
                       ),
+                      const SizedBox(height: 4),
+                      ...dmState.dms.map(
+                        (dm) => _DMItem(
+                          dm: dm,
+                          isSelected: dmState.selectedDMId == dm.id,
+                          onTap: () {
+                            ref.read(dmProvider.notifier).setSelectedDM(dm.id);
+                            context.go('/me/dm/${dm.id}');
+                          },
+                        ),
+                      ),
+                    ],
+                  ),
           ),
         ],
       ),
@@ -383,13 +534,14 @@ class _DMItem extends StatelessWidget {
                           otherUser.displayName ?? 'Unknown',
                           style: TextStyle(
                             fontSize: 14,
-                            fontWeight: isSelected ? FontWeight.w500 : FontWeight.w400,
+                            fontWeight: isSelected
+                                ? FontWeight.w500
+                                : FontWeight.w400,
                             color: isSelected
                                 ? Theme.of(context).colorScheme.onSurface
-                                : Theme.of(context)
-                                    .colorScheme
-                                    .onSurface
-                                    .withOpacity(0.8),
+                                : Theme.of(
+                                    context,
+                                  ).colorScheme.onSurface.withOpacity(0.8),
                           ),
                           overflow: TextOverflow.ellipsis,
                         ),
@@ -400,10 +552,9 @@ class _DMItem extends StatelessWidget {
                           _formatTime(dm.lastMessage!.createdAt),
                           style: TextStyle(
                             fontSize: 10,
-                            color: Theme.of(context)
-                                .colorScheme
-                                .onSurface
-                                .withOpacity(0.5),
+                            color: Theme.of(
+                              context,
+                            ).colorScheme.onSurface.withOpacity(0.5),
                           ),
                         ),
                       ],
@@ -414,10 +565,9 @@ class _DMItem extends StatelessWidget {
                       dm.lastMessage?.content ?? '',
                       style: TextStyle(
                         fontSize: 11,
-                        color: Theme.of(context)
-                            .colorScheme
-                            .onSurface
-                            .withOpacity(0.5),
+                        color: Theme.of(
+                          context,
+                        ).colorScheme.onSurface.withOpacity(0.5),
                       ),
                       overflow: TextOverflow.ellipsis,
                       maxLines: 1,
@@ -428,10 +578,7 @@ class _DMItem extends StatelessWidget {
             if (dm.unreadCount > 0)
               Container(
                 margin: const EdgeInsets.only(left: 4),
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 6,
-                  vertical: 2,
-                ),
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                 decoration: BoxDecoration(
                   color: Theme.of(context).colorScheme.primary,
                   borderRadius: BorderRadius.circular(10),
@@ -451,4 +598,3 @@ class _DMItem extends StatelessWidget {
     );
   }
 }
-

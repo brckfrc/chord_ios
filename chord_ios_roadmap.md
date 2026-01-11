@@ -9,6 +9,19 @@
 
 ---
 
+## 📍 Şu An Neredeyiz
+
+**Son Tamamlanan**: FAZ 7.5 - WebRTC Connection Stability & Friends Feature
+
+**Aktif Çalışılan**: Friends Feature iyileştirmeleri
+
+**Bilinen Sorunlar & Yapılacaklar**:
+
+- ⚠️ **DM Unread Count Güncelleme Sorunu**: DM'lerde okunmamış mesaj sayısı güncellenmiyor, hep okunmamış olarak görünüyor. DM açıldığında `markDMAsRead` çağrılıyor ancak state güncellenmiyor veya SignalR event'i gelmiyor olabilir.
+- ⚠️ **Pending Friend Requests UI Eksik**: Arkadaşlık istekleri UI'da görünmüyor. FriendsSidebar veya FriendsHome'da pending requests listesi eklenebilir (badge ile sayı gösterimi mevcut ama detaylı liste yok).
+
+---
+
 ## 🏗️ FAZ 1: PROJE ŞABLONU & TEMEL YAPI
 
 **Durum**: ✅ TAMAMLANDI (2025-01-XX)
@@ -369,6 +382,12 @@
 - VoiceBar disconnect sorunu çözüldü (null değerler doğru set ediliyor, VoiceState.copyWith sorunu giderildi)
 - Participant fetch loop sorunu çözüldü (sadece yeni guild'ler eklendiğinde fetch yapılıyor)
 - Friends özelliği tamamlandı (repository, provider, UI, SignalR events)
+- Aktif arkadaş listesi eklendi (horizontal list, online/idle friends gösterimi, FriendsSidebar header altında)
+- Aktif arkadaşa tıklayınca DM açma özelliği eklendi (mevcut DM varsa açılıyor, yoksa yeni DM oluşturuluyor)
+- DM oluşturma endpoint düzeltmesi yapıldı (`/DMs/{userId}` → `/dms/users/{userId}`, backend route'u ile uyumlu)
+- Error handling iyileştirildi (backend'den gelen error messages gösteriliyor, DioException handling eklendi)
+- Türkçe mesajlar İngilizce'ye çevrildi (tüm user-facing mesajlar İngilizce)
+- Overflow sorunu düzeltildi (aktif arkadaş listesi container height 80 → 85)
 
 ### Görevler
 
@@ -382,6 +401,12 @@
 - [x] FriendsSidebar güncellemesi (friends provider entegrasyonu) ✅
 - [x] VoiceBar disconnect state fix (null değerler doğru set ediliyor, VoiceState instance oluşturma) ✅
 - [x] Participant fetch loop fix (sadece yeni guild'ler eklendiğinde fetch, voice channel kontrolü) ✅
+- [x] Aktif arkadaş listesi eklendi (horizontal list, online/idle friends, FriendsSidebar header altında) ✅
+- [x] Aktif arkadaşa tıklayınca DM açma özelliği eklendi (mevcut DM varsa açılıyor, yoksa yeni DM oluşturuluyor) ✅
+- [x] DM oluşturma endpoint düzeltmesi (`/DMs/{userId}` → `/dms/users/{userId}`) ✅
+- [x] Error handling iyileştirmesi (backend error messages, DioException handling, debug logging) ✅
+- [x] Türkçe mesajlar İngilizce'ye çevrildi (tüm user-facing mesajlar İngilizce) ✅
+- [x] Overflow sorunu düzeltildi (aktif arkadaş listesi container height artırıldı) ✅
 
 ### Deliverables
 
@@ -392,6 +417,17 @@
 ✅ Add Friend butonu çalışıyor
 ✅ VoiceBar disconnect sonrası doğru şekilde kayboluyor (activeChannelId: null)
 ✅ Participant fetch döngüsü sorunu çözüldü (sadece yeni guild'ler için fetch)
+✅ Aktif arkadaş listesi görünüyor (horizontal list, online/idle friends)
+✅ Aktif arkadaşa tıklayınca DM açılıyor (mevcut DM varsa açılıyor, yoksa yeni DM oluşturuluyor)
+✅ DM oluşturma endpoint doğru çalışıyor (backend route'u ile uyumlu)
+✅ Backend error messages kullanıcıya gösteriliyor (DioException handling)
+✅ Tüm mesajlar İngilizce (Türkçe mesajlar kaldırıldı)
+✅ Overflow sorunu çözüldü (aktif arkadaş listesi düzgün render ediliyor)
+
+**Bilinen Sorunlar & Gelecek İyileştirmeler**:
+
+- ⚠️ **DM Unread Count Güncelleme Sorunu**: DM'lerde okunmamış mesaj sayısı güncellenmiyor, hep okunmamış olarak görünüyor. DM açıldığında `markDMAsRead` çağrılıyor ancak state güncellenmiyor veya SignalR event'i gelmiyor olabilir.
+- ⚠️ **Pending Friend Requests UI Eksik**: Arkadaşlık istekleri UI'da görünmüyor. FriendsSidebar veya FriendsHome'da pending requests listesi eklenebilir (badge ile sayı gösterimi mevcut ama detaylı liste yok).
 
 ---
 
@@ -433,28 +469,69 @@
 
 ---
 
-## 🏗️ FAZ 9: PUSH NOTIFICATIONS
+## 🏗️ FAZ 9: LOCAL NOTIFICATIONS
 
+**Durum**: ✅ TAMAMLANDI (2025-01-XX)
 **Süre**: ~1 hafta
 **Backend Bağımlılığı**: ✅ FAZ 5.5 (Mentions) - Backend'de mentions tamamlandı
-**Frontend Referans**: Browser notifications (FAZ 5.5'te yapılacak)
+
+**Not**:
+- Local notifications (foreground) implementasyonu tamamlandı
+- `flutter_local_notifications` package kullanılıyor
+- Notification preferences sistemi eklendi (channel ve DM için ayrı ayarlar)
+- UserSettingsModal'a notifications tab'ı eklendi
+- Deep linking çalışıyor (notification tap → route navigation)
+- StatusUpdateModal UserSettingsModal'a taşındı (status + notifications birleşik modal)
 
 ### Görevler
+
+- [x] `flutter_local_notifications` package kurulumu ✅
+- [x] NotificationService oluşturma (initialization, permissions) ✅
+- [x] Notification preferences service (SharedPreferences) ✅
+- [x] Notification preferences provider (Riverpod) ✅
+- [x] Mention notification handler (SignalR UserMentioned event) ✅
+- [x] DM notification handler (SignalR DMReceiveMessage event) ✅
+- [x] Deep linking (notification tap → route navigation) ✅
+- [x] Notification settings UI (UserSettingsModal - Notifications tab) ✅
+- [x] StatusUpdateModal → UserSettingsModal'a taşındı ✅
+
+### Deliverables
+
+✅ Local notifications çalışıyor (foreground)
+✅ Mention/DM geldiğinde bildirim gösteriliyor
+✅ Deep linking çalışıyor (notification tap → ilgili sayfaya yönlendirme)
+✅ Notification preferences çalışıyor (channel/DM ayrı ayarlar)
+✅ UserSettingsModal çalışıyor (status + notifications birleşik)
+
+---
+
+## 🏗️ FAZ 9.5: PUSH NOTIFICATIONS (FCM/APNs)
+
+**Durum**: ❌ YAPILMAYACAK ŞİMDİLİK
+**Süre**: ~1 hafta (gelecekte)
+**Backend Bağımlılığı**: ✅ FAZ 5.5 (Mentions) - Backend'de mentions tamamlandı
+
+**Not**:
+- Push notifications (FCM/APNs) şimdilik yapılmayacak
+- Local notifications (FAZ 9) foreground için yeterli
+- Gelecekte backend'de FCM token yönetimi ve push notification endpoint'leri eklendiğinde implement edilebilir
+
+### Görevler (Gelecek)
 
 - [ ] `firebase_messaging` package kurulumu
 - [ ] APNs sertifikaları/key'leri yapılandırma
 - [ ] Firebase Cloud Messaging (FCM) setup
 - [ ] Push notification handler (foreground/background)
-- [ ] Notification payload parsing (mention, DM, message)
-- [ ] Deep linking (notification'dan channel'a yönlendirme)
-- [ ] Notification badge count
-- [ ] Notification settings UI (mute/unmute channels)
+- [ ] FCM token yönetimi (backend'e token gönderme)
+- [ ] Background notification handling
+- [ ] Notification badge count (iOS)
+- [ ] Backend entegrasyonu (FCM token endpoint'leri)
 
 ### Deliverables
 
-✅ Push notifications çalışıyor
-✅ Mention/DM geldiğinde bildirim
-✅ Deep linking çalışıyor
+⏳ Push notifications çalışıyor (background)
+⏳ App kapalıyken bildirim geliyor
+⏳ Badge count güncelleniyor
 
 ---
 
@@ -532,8 +609,9 @@
 7. **FAZ 7**: WebRTC Multi-User & Mute/Unmute - ✅ TAMAMLANDI
 8. **FAZ 7.5**: WebRTC Connection Stability & Friends Feature - ✅ TAMAMLANDI
 9. **FAZ 8**: File upload & Video support - ✅ TAMAMLANDI
-10. **FAZ 9**: Push notifications (Backend FAZ 5.5'te mentions tamamlandı ✅)
-11. **FAZ 10-12**: Polish, testing, store
+10. **FAZ 9**: Local Notifications (Backend FAZ 5.5'te mentions tamamlandı ✅) - ✅ TAMAMLANDI
+11. **FAZ 9.5**: Push Notifications (FCM/APNs) - ❌ YAPILMAYACAK ŞİMDİLİK
+12. **FAZ 10-12**: Polish, testing, store
 
 ---
 
@@ -547,7 +625,8 @@
 
 **Backend beklenmesi gereken:**
 
-- FAZ 9 (Push): Backend'de mentions (FAZ 5.5) hazır olmalı (genel notifications için gerekli değil) - ✅ TAMAMLANDI
+- FAZ 9 (Local Notifications): Backend'de mentions (FAZ 5.5) hazır olmalı - ✅ TAMAMLANDI
+- FAZ 9.5 (Push Notifications): Backend'de FCM token yönetimi ve push notification endpoint'leri gerekli - ❌ YAPILMAYACAK ŞİMDİLİK
 
 **Frontend referans:**
 
@@ -585,3 +664,10 @@
 - Local database (Isar/Hive) ile mesajlar, guild listesi cache'lenir
 - Dio interceptor ile offline request queue (online olduğunda sync)
 - Riverpod ile cache state management
+
+### Notification Paketleri
+
+- **Kullanılan**: `flutter_local_notifications` (foreground local notifications için)
+- **Not**: FAZ 9'da local notifications implementasyonu tamamlandı. Foreground'da mention ve DM bildirimleri gösteriliyor.
+- **Gelecek (FAZ 9.5)**: `firebase_messaging` (push notifications için, şimdilik yapılmayacak)
+- **Alternatif**: `awesome_notifications` (daha özellikli ama daha kompleks)

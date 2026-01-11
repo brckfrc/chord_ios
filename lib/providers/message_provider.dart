@@ -1,5 +1,7 @@
+import 'dart:async';
 import 'dart:convert';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:signalr_core/signalr_core.dart';
 import '../models/message/message_dto.dart';
 import '../models/message/direct_message_dto.dart';
 import '../models/message/create_message_dto.dart';
@@ -11,7 +13,11 @@ import '../services/database/message_cache_service.dart';
 import 'signalr/chat_hub_provider.dart';
 import 'auth_provider.dart';
 import 'mention_provider.dart';
+import 'channel_provider.dart';
+import 'dm_provider.dart';
 import '../models/mention/message_mention_dto.dart';
+import '../services/notifications/notification_service.dart';
+import 'notification_preferences_provider.dart';
 
 /// Message state for a channel
 class MessageState {
@@ -88,11 +94,18 @@ class MessageNotifier extends StateNotifier<MessageState> {
   final MessageRepository _repository;
   final Ref _ref;
   bool _listenersRegistered = false;
+  Timer? _retryTimer;
 
   MessageNotifier(this._repository, this._ref) : super(MessageState()) {
     _setupSignalRListeners();
     _setupConnectivityListener();
     // Cache is already initialized in main.dart via DatabaseService.init()
+  }
+
+  @override
+  void dispose() {
+    _retryTimer?.cancel();
+    super.dispose();
   }
 
   /// Setup connectivity listener for auto-sync
@@ -132,37 +145,129 @@ class MessageNotifier extends StateNotifier<MessageState> {
   }
 
   void _setupSignalRListeners() {
-    // Connection state'i dinle ve connection kurulduğunda listener'ları kaydet
+    print('🔄 [MessageProvider] Setting up SignalR listeners...');
+    
     _ref.listen<ChatHubState>(chatHubProvider, (previous, next) {
-      // Connection kurulduğunda listener'ları kaydet (sadece bir kez)
+      print('🔍 [MessageProvider] ChatHubState changed: previous=${previous?.isConnected}, next=${next.isConnected}, state=${next.connectionState}');
+      
+      if (previous?.isConnected == true && !next.isConnected) {
+        print('⚠️ [MessageProvider] SignalR connection lost, resetting listeners');
+        _listenersRegistered = false;
+        _retryTimer?.cancel();
+      }
+      
       if (next.isConnected && !_listenersRegistered) {
-        _registerListeners();
+        print('🔄 [MessageProvider] SignalR connected (via listener), registering listeners...');
+        Future.delayed(const Duration(milliseconds: 500), () {
+          _registerListeners();
+        });
       }
     });
 
-    // Eğer zaten bağlıysa hemen kaydet
+    // Initial check
     final chatHubState = _ref.read(chatHubProvider);
+    print('🔍 [MessageProvider] Initial ChatHubState: isConnected=${chatHubState.isConnected}, state=${chatHubState.connectionState}');
+    
     if (chatHubState.isConnected && !_listenersRegistered) {
-      _registerListeners();
+      print('🔄 [MessageProvider] SignalR already connected, registering listeners...');
+      Future.delayed(const Duration(milliseconds: 500), () {
+        _registerListeners();
+      });
+    } else {
+      // Start retry mechanism if not connected
+      _checkAndRegisterListeners();
     }
+  }
+
+  void _checkAndRegisterListeners() {
+    _retryTimer?.cancel();
+    
+    _retryTimer = Timer.periodic(const Duration(seconds: 2), (timer) {
+      if (_listenersRegistered) {
+        print('✅ [MessageProvider] Listeners registered, stopping retry timer');
+        timer.cancel();
+        return;
+      }
+      
+      final chatHubState = _ref.read(chatHubProvider);
+      final service = _ref.read(chatHubServiceProvider);
+      final connection = service.connection;
+      
+      print('🔍 [MessageProvider] Retry check: isConnected=${chatHubState.isConnected}, state=${chatHubState.connectionState}, connection.state=${connection?.state}');
+      
+      // Check both provider state and direct connection
+      final isConnected = chatHubState.isConnected || 
+                         (connection != null && connection.state == HubConnectionState.connected);
+      
+      if (isConnected) {
+        print('🔄 [MessageProvider] SignalR connected (retry check), registering listeners...');
+        timer.cancel();
+        Future.delayed(const Duration(milliseconds: 500), () {
+          _registerListeners();
+        });
+      } else {
+        print('⏳ [MessageProvider] SignalR not connected yet, will retry...');
+      }
+      
+      // Stop retrying after 30 seconds
+      if (timer.tick >= 15) {
+        print('⏸️ [MessageProvider] Retry limit reached, stopping retry timer');
+        timer.cancel();
+      }
+    });
   }
 
   void _registerListeners() {
     if (_listenersRegistered) {
+      print('ℹ️ [MessageProvider] Listeners already registered, skipping');
       return;
     }
 
-    final chatHub = _ref.read(chatHubProvider.notifier);
-    final connection = _ref.read(chatHubServiceProvider).connection;
+    print('🔄 [MessageProvider] Attempting to register listeners...');
+    
+    // Try to get connection directly from service
+    final service = _ref.read(chatHubServiceProvider);
+    final connection = service.connection;
+    
+    print('🔍 [MessageProvider] Direct connection check: ${connection?.state ?? 'null'}');
+    
+    // Check provider state
+    final chatHubState = _ref.read(chatHubProvider);
+    print('🔍 [MessageProvider] Provider state check: isConnected=${chatHubState.isConnected}, state=${chatHubState.connectionState}');
+    
+    // Verify connection state from both sources
+    final isProviderConnected = chatHubState.isConnected;
+    final isConnectionConnected = connection != null && connection.state == HubConnectionState.connected;
+    
+    if (!isProviderConnected && !isConnectionConnected) {
+      print('❌ [MessageProvider] Cannot register listeners: SignalR not connected (provider: $isProviderConnected, connection: $isConnectionConnected)');
+      // Continue retry mechanism
+      _checkAndRegisterListeners();
+      return;
+    }
 
     if (connection == null) {
+      print('❌ [MessageProvider] Cannot register listeners: SignalR connection is null');
+      _checkAndRegisterListeners();
       return;
     }
 
+    if (connection.state != HubConnectionState.connected) {
+      print('❌ [MessageProvider] Cannot register listeners: SignalR connection state is ${connection.state}');
+      _checkAndRegisterListeners();
+      return;
+    }
+
+    print('✅ [MessageProvider] All checks passed, registering SignalR event listeners...');
     _listenersRegistered = true;
+    _retryTimer?.cancel();
+    
+    final chatHub = _ref.read(chatHubProvider.notifier);
 
     // Listen to ReceiveMessage event
-    chatHub.on('ReceiveMessage', (args) {
+    chatHub.on('ReceiveMessage', (args) async {
+      print('🔔 [MessageProvider] ReceiveMessage handler called, args: $args (isNull: ${args == null}, isEmpty: ${args?.isEmpty ?? true})');
+      
       if (args != null && args.isNotEmpty) {
         try {
           final messageJson = args[0] as Map<String, dynamic>;
@@ -179,6 +284,8 @@ class MessageNotifier extends StateNotifier<MessageState> {
               state.messagesByChannel[message.channelId] ?? [];
           final authState = _ref.read(authProvider);
           final currentUserId = authState.user?.id;
+          
+          print('🔍 [MessageProvider] Notification check: currentUserId=$currentUserId, message.userId=${message.userId}, message.channelId=${message.channelId}');
 
           if (currentUserId != null && message.userId == currentUserId) {
             // Try to find pending message with same content
@@ -206,11 +313,74 @@ class MessageNotifier extends StateNotifier<MessageState> {
           // Normal add (not replacing pending)
           print('➕ [MessageProvider] Adding new message to channel');
           _addMessageToChannel(message.channelId, message);
+          
+          // Show notification if message is from another user and user is not viewing this channel
+          print('🔍 [MessageProvider] Notification check: currentUserId=$currentUserId, message.userId=${message.userId}, shouldCheck=${currentUserId != null && message.userId != currentUserId}');
+          
+          if (currentUserId != null && message.userId != currentUserId) {
+            final channelState = _ref.read(channelProvider);
+            final isViewingChannel = channelState.selectedChannelId == message.channelId;
+            
+            print('🔔 [MessageProvider] ReceiveMessage notification check: channelId=${message.channelId}, selectedChannelId=${channelState.selectedChannelId}, isViewingChannel=$isViewingChannel');
+            
+            if (!isViewingChannel) {
+              // Check notification preferences
+              final notificationPrefs = _ref.read(notificationPreferencesProvider);
+              if (!notificationPrefs.channelEnabled) {
+                print('⏭️ [MessageProvider] Skipping channel notification - disabled by user');
+                return;
+              }
+              
+              final username = message.user?.username ?? 
+                             message.user?.displayName ?? 
+                             'Someone';
+              final content = message.content;
+              
+              // Try to get guildId from channel provider
+              String? guildId;
+              try {
+                for (final guildChannels in channelState.channelsByGuild.values) {
+                  final channel = guildChannels.firstWhere(
+                    (c) => c.id == message.channelId,
+                    orElse: () => throw Exception('Channel not found'),
+                  );
+                  guildId = channel.guildId;
+                  break;
+                }
+              } catch (e) {
+                guildId = null;
+              }
+              
+              try {
+                print('🔔 [MessageProvider] Showing channel message notification: $username in channel ${message.channelId}');
+                await NotificationService.showMentionNotification(
+                  username: username,
+                  content: content,
+                  channelId: message.channelId,
+                  guildId: guildId,
+                );
+                print('✅ [MessageProvider] Channel message notification shown successfully');
+              } catch (e) {
+                print('❌ [MessageProvider] Failed to show channel message notification: $e');
+              }
+            } else {
+              print('⏭️ [MessageProvider] Skipping channel message notification - user is viewing this channel');
+            }
+          } else {
+            print('⏭️ [MessageProvider] Skipping notification check: currentUserId=$currentUserId, message.userId=${message.userId}');
+            if (currentUserId == null) {
+              print('⏭️ [MessageProvider] Reason: currentUserId is null');
+            } else if (message.userId == currentUserId) {
+              print('⏭️ [MessageProvider] Reason: message is from current user (own message)');
+            }
+          }
         } catch (e, stackTrace) {
           print('❌ [MessageProvider] Error parsing ReceiveMessage: $e');
           print('❌ [MessageProvider] Stack trace: $stackTrace');
           // Ignore parsing errors
         }
+      } else {
+        print('⚠️ [MessageProvider] ReceiveMessage: args is null or empty, skipping');
       }
     });
 
@@ -287,9 +457,11 @@ class MessageNotifier extends StateNotifier<MessageState> {
     });
 
     // Listen to UserMentioned event
-    chatHub.on('UserMentioned', (args) {
+    chatHub.on('UserMentioned', (args) async {
       if (args != null && args.length >= 1) {
         try {
+          print('🔔 [MessageProvider] UserMentioned event received');
+          
           // args[0] should be MessageMentionDto JSON
           if (args[0] is Map) {
             final mentionJson = args[0] as Map<String, dynamic>;
@@ -302,6 +474,7 @@ class MessageNotifier extends StateNotifier<MessageState> {
             // Ignore if user mentioned themselves
             if (currentUserId != null &&
                 mention.mentionedUserId == currentUserId) {
+              print('⏭️ [MessageProvider] Skipping mention - user mentioned themselves');
               return;
             }
 
@@ -311,13 +484,56 @@ class MessageNotifier extends StateNotifier<MessageState> {
             // Refresh unread count
             _ref.read(mentionProvider.notifier).fetchUnreadMentionCount();
 
-            // Show in-app notification (foreground only)
-            // Note: We can't access BuildContext here, so we'll use a global navigator key
-            // For now, we'll just update the state - UI can show notification based on state
-            // In a real app, you'd use a notification service or overlay
+            // Check if user is currently viewing this channel
+            final channelState = _ref.read(channelProvider);
+            final isViewingChannel = channelState.selectedChannelId == mention.message.channelId;
+            
+            print('🔔 [MessageProvider] UserMentioned: channelId=${mention.message.channelId}, isViewingChannel=$isViewingChannel');
+            
+            // Only show notification if user is NOT viewing this channel
+            if (!isViewingChannel) {
+              // Show notification
+              final username = mention.message.user?.username ?? 
+                             mention.message.user?.displayName ?? 
+                             'Someone';
+              final content = mention.message.content;
+              final channelId = mention.message.channelId;
+              
+              // Try to get guildId from channel provider (if available)
+              String? guildId;
+              try {
+                // Search through all guilds for the channel
+                for (final guildChannels in channelState.channelsByGuild.values) {
+                  final channel = guildChannels.firstWhere(
+                    (c) => c.id == channelId,
+                    orElse: () => throw Exception('Channel not found'),
+                  );
+                  guildId = channel.guildId;
+                  break;
+                }
+              } catch (e) {
+                // GuildId not available, will navigate to mentions panel
+                guildId = null;
+              }
+              
+              try {
+                print('🔔 [MessageProvider] Showing mention notification: $username in channel $channelId');
+                await NotificationService.showMentionNotification(
+                  username: username,
+                  content: content,
+                  channelId: channelId,
+                  guildId: guildId,
+                );
+                print('✅ [MessageProvider] Mention notification shown successfully');
+              } catch (e) {
+                print('❌ [MessageProvider] Failed to show mention notification: $e');
+              }
+            } else {
+              print('⏭️ [MessageProvider] Skipping mention notification - user is viewing this channel');
+            }
           }
         } catch (e) {
-          // Ignore parsing errors
+          print('❌ [MessageProvider] Error handling UserMentioned event: $e');
         }
       }
     });
@@ -325,7 +541,7 @@ class MessageNotifier extends StateNotifier<MessageState> {
     // ========== DM Event Listeners ==========
 
     // Listen to DMReceiveMessage event
-    chatHub.on('DMReceiveMessage', (args) {
+    chatHub.on('DMReceiveMessage', (args) async {
       if (args != null && args.isNotEmpty) {
         try {
           final messageJson = args[0] as Map<String, dynamic>;
@@ -359,6 +575,44 @@ class MessageNotifier extends StateNotifier<MessageState> {
 
           // Normal add (not replacing pending)
           _addMessageToChannel(message.channelId, message);
+          
+          // Show notification (only if not current user and not viewing this DM)
+          if (currentUserId != null && message.userId != currentUserId) {
+            // Check if user is currently viewing this DM
+            final dmState = _ref.read(dmProvider);
+            final isViewingDM = dmState.selectedDMId == message.channelId;
+            
+            print('🔔 [MessageProvider] DMReceiveMessage event: channelId=${message.channelId}, isViewingDM=$isViewingDM');
+            
+            // Only show notification if user is NOT viewing this DM
+            if (!isViewingDM) {
+              // Check notification preferences
+              final notificationPrefs = _ref.read(notificationPreferencesProvider);
+              if (!notificationPrefs.dmEnabled) {
+                print('⏭️ [MessageProvider] Skipping DM notification - disabled by user');
+                return;
+              }
+              
+              final username = message.user?.username ?? 
+                             message.user?.displayName ?? 
+                             'Someone';
+              final content = message.content;
+              
+              try {
+                print('🔔 [MessageProvider] Showing DM notification: $username in DM ${message.channelId}');
+                await NotificationService.showDMNotification(
+                  username: username,
+                  content: content,
+                  channelId: message.channelId,
+                );
+                print('✅ [MessageProvider] DM notification shown successfully');
+              } catch (e) {
+                print('❌ [MessageProvider] Failed to show DM notification: $e');
+              }
+            } else {
+              print('⏭️ [MessageProvider] Skipping DM notification - user is viewing this DM');
+            }
+          }
         } catch (e) {
           // Ignore parsing errors
         }
@@ -435,6 +689,8 @@ class MessageNotifier extends StateNotifier<MessageState> {
         }
       }
     });
+    
+    print('✅ [MessageProvider] All SignalR event listeners registered successfully');
   }
 
   /// Fetch messages for a channel

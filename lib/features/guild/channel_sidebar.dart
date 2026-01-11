@@ -6,6 +6,7 @@ import 'dart:io';
 import '../../providers/guild_provider.dart';
 import '../../providers/channel_provider.dart';
 import '../../providers/voice_provider.dart';
+import '../../providers/signalr/chat_hub_provider.dart';
 import '../../models/guild/channel_dto.dart';
 import '../../models/guild/channel_type.dart';
 import '../../features/modals/create_channel_modal.dart';
@@ -31,14 +32,222 @@ class _ChannelSidebarState extends ConsumerState<ChannelSidebar> {
     'ANNOUNCEMENTS': true,
     'VOICE CHANNELS': true,
   };
-
+  // Auto-join state variables
+  final Set<String> _joinedChannelIds = {};
+  String? _currentGuildId;
+  bool _isAutoJoining = false;
+  bool _listenersSetup = false;
+  static const int _maxChannelsForAutoJoin = 10;
   void _toggleSection(String sectionTitle) {
     setState(() {
       _sectionExpanded[sectionTitle] =
           !(_sectionExpanded[sectionTitle] ?? true);
     });
   }
+
+  @override
+  void initState() {
+    super.initState();
+  }
+
   
+  void _checkAndJoinChannelsIfNeeded() {
+    if (_isAutoJoining) {
+      if (kDebugMode) {
+        print('⏸️ [AutoJoin] Already joining channels, skipping...');
+      }
+      return;
+    }
+
+    final guildState = ref.read(guildProvider);
+    final channelState = ref.read(channelProvider);
+    final chatHubState = ref.read(chatHubProvider);
+    final selectedGuildId = guildState.selectedGuildId;
+
+    if (kDebugMode) {
+      print('🔍 [AutoJoin] Checking conditions: guildId=$selectedGuildId, isConnected=${chatHubState.isConnected}, joinedChannels=${_joinedChannelIds.length}');
+    }
+
+    // Check conditions
+    if (selectedGuildId == null) {
+      if (kDebugMode) {
+        print('❌ [AutoJoin] No guild selected, skipping...');
+      }
+      return;
+    }
+    if (!chatHubState.isConnected) {
+      if (kDebugMode) {
+        print('❌ [AutoJoin] SignalR not connected, skipping...');
+      }
+      return;
+    }
+    if (_joinedChannelIds.isNotEmpty) {
+      if (kDebugMode) {
+        print('❌ [AutoJoin] Already joined ${_joinedChannelIds.length} channels, skipping...');
+      }
+      return;
+    }
+
+    final channels = channelState.getChannelsForGuild(selectedGuildId);
+    if (channels.isEmpty) return;
+
+    final textChannels = channels
+        .where((c) => c.type == ChannelType.text || c.type == ChannelType.announcement)
+        .toList();
+
+    if (textChannels.isEmpty) return;
+    if (textChannels.length > _maxChannelsForAutoJoin) {
+      // Only join first N channels if there are too many
+      _joinAllTextChannels(textChannels.take(_maxChannelsForAutoJoin).toList());
+    } else {
+      _joinAllTextChannels(textChannels);
+    }
+  }
+
+  /// Join all text channels in parallel
+  Future<void> _joinAllTextChannels(List<ChannelDto> channels) async {
+    if (_isAutoJoining) return;
+    if (channels.isEmpty) return;
+
+    setState(() {
+      _isAutoJoining = true;
+    });
+
+    try {
+      final chatHub = ref.read(chatHubProvider.notifier);
+      
+      // Join all channels in parallel
+      await Future.wait(
+        channels.map((channel) async {
+          try {
+            await chatHub.joinChannel(channel.id);
+            _joinedChannelIds.add(channel.id);
+            if (kDebugMode) {
+              print('✅ [AutoJoin] Joined channel: ${channel.name} (${channel.id})');
+            }
+          } catch (e) {
+            if (kDebugMode) {
+              print('❌ [AutoJoin] Failed to join channel ${channel.name}: $e');
+            }
+          }
+        }),
+      );
+
+      if (kDebugMode) {
+        print('✅ [AutoJoin] Completed joining ${_joinedChannelIds.length} channels');
+      }
+    } catch (e) {
+      if (kDebugMode) {
+        print('❌ [AutoJoin] Error joining channels: $e');
+      }
+    } finally {
+      setState(() {
+        _isAutoJoining = false;
+      });
+    }
+  }
+
+  /// Leave all joined channels
+  Future<void> _leaveAllChannels() async {
+    if (_joinedChannelIds.isEmpty) return;
+
+    try {
+      final chatHub = ref.read(chatHubProvider.notifier);
+      final channelIds = _joinedChannelIds.toList();
+
+      // Leave all channels in parallel
+      await Future.wait(
+        channelIds.map((channelId) async {
+          try {
+            await chatHub.leaveChannel(channelId);
+            if (kDebugMode) {
+              print('✅ [AutoJoin] Left channel: $channelId');
+            }
+          } catch (e) {
+            if (kDebugMode) {
+              print('❌ [AutoJoin] Failed to leave channel $channelId: $e');
+            }
+          }
+        }),
+      );
+
+      _joinedChannelIds.clear();
+      if (kDebugMode) {
+        print('✅ [AutoJoin] Left all channels');
+      }
+    } catch (e) {
+      if (kDebugMode) {
+        print('❌ [AutoJoin] Error leaving channels: $e');
+      }
+      // Clear even if there was an error
+      _joinedChannelIds.clear();
+    }
+  }
+  
+
+  @override
+  void dispose() {
+    _leaveAllChannels();
+    super.dispose();
+  }
+
+  /// Setup channel subscription listener
+  void _setupChannelSubscriptionListener() {
+    ref.listen<ChannelState>(channelProvider, (previous, next) {
+      final guildState = ref.read(guildProvider);
+      final selectedGuildId = guildState.selectedGuildId;
+
+      // Guild changed - leave old channels and join new ones
+      if (selectedGuildId != null && selectedGuildId != _currentGuildId) {
+        _currentGuildId = selectedGuildId;
+        _leaveAllChannels();
+        _checkAndJoinChannelsIfNeeded();
+        return;
+      }
+
+      // If no channels joined yet and we have a guild, check if we should join
+      if (_joinedChannelIds.isEmpty && selectedGuildId != null) {
+        _checkAndJoinChannelsIfNeeded();
+      }
+    });
+  }
+
+  /// Setup SignalR connection listener
+  void _setupSignalRConnectionListener() {
+    ref.listen<ChatHubState>(chatHubProvider, (previous, next) {
+      if (kDebugMode) {
+        print('🔍 [AutoJoin] SignalR state changed: previous=${previous?.isConnected}, next=${next.isConnected}, currentGuildId=$_currentGuildId, joinedChannels=${_joinedChannelIds.length}');
+      }
+      // IMPORTANT: Use if (next.isConnected) instead of checking transition
+      // This ensures auto-join triggers whenever connection is established,
+      // regardless of previous state
+      if (next.isConnected) {
+        // Check if we need to join channels
+        if (_joinedChannelIds.isEmpty && _currentGuildId != null) {
+          if (kDebugMode) {
+            print('🔄 [AutoJoin] Triggering auto-join: no channels joined, guild=$_currentGuildId');
+          }
+          _checkAndJoinChannelsIfNeeded();
+        } else if (_currentGuildId != null) {
+          // Re-join logic: if we have a guild but channels might have been lost
+          final channels = ref.read(channelProvider).getChannelsForGuild(_currentGuildId!);
+          final textChannels = channels
+              .where((c) => c.type == ChannelType.text || c.type == ChannelType.announcement)
+              .toList();
+          
+          // Check if we need to re-join any channels
+          final channelsToRejoin = textChannels
+              .where((c) => !_joinedChannelIds.contains(c.id))
+              .take(_maxChannelsForAutoJoin)
+              .toList();
+          
+          if (channelsToRejoin.isNotEmpty) {
+            _joinAllTextChannels(channelsToRejoin);
+          }
+        }
+      }
+    });
+  }
   /// Check if running on iOS Simulator
   Future<bool> _isSimulator() async {
     if (kIsWeb) return false;
@@ -56,6 +265,34 @@ class _ChannelSidebarState extends ConsumerState<ChannelSidebar> {
 
   @override
   Widget build(BuildContext context) {
+    // Setup listeners (only once)
+    if (!_listenersSetup) {
+      _listenersSetup = true;
+      _setupChannelSubscriptionListener();
+      _setupSignalRConnectionListener();
+      
+      // Check initial state after first frame with periodic retry
+      WidgetsBinding.instance.addPostFrameCallback((_) async {
+        final guildState = ref.read(guildProvider);
+        _currentGuildId = guildState.selectedGuildId;
+        
+        // Try immediately
+        _checkAndJoinChannelsIfNeeded();
+        
+        // Retry after a delay in case state hasn't updated yet
+        await Future.delayed(const Duration(milliseconds: 1000));
+        if (mounted && _joinedChannelIds.isEmpty && _currentGuildId != null) {
+          _checkAndJoinChannelsIfNeeded();
+        }
+        
+        // One more retry after longer delay
+        await Future.delayed(const Duration(milliseconds: 2000));
+        if (mounted && _joinedChannelIds.isEmpty && _currentGuildId != null) {
+          _checkAndJoinChannelsIfNeeded();
+        }
+      });
+    }
+
     final guildState = ref.watch(guildProvider);
     final channelState = ref.watch(channelProvider);
     final selectedGuildId = guildState.selectedGuildId;

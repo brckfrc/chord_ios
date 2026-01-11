@@ -5,6 +5,8 @@ import '../../core/theme/app_theme.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/signalr/presence_hub_provider.dart';
 import '../../providers/presence_provider.dart';
+import '../../providers/message_provider.dart';
+import '../../providers/notification_preferences_provider.dart';
 
 /// Splash/Welcome screen with auto-login
 class SplashScreen extends ConsumerStatefulWidget {
@@ -21,19 +23,34 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
     _checkAutoLogin();
   }
 
-  /// Initialize PresenceHub and PresenceProvider
-  Future<void> _initializePresence() async {
+  /// Initialize PresenceHub, PresenceProvider, and MessageProvider
+  Future<void> _initializeProviders() async {
+    if (!mounted) return;
+    
     try {
-      // Start PresenceHub connection
+      // Initialize providers first (before async operations)
+      // This ensures they are created even if widget is disposed during async operations
+      if (!mounted) return;
+      ref.read(presenceProvider);
+      
+      if (!mounted) return;
+      // Initialize MessageProvider (this will register SignalR listeners for messages)
+      // This ensures ReceiveMessage events are listened to even if no message view is open
+      ref.read(messageProvider);
+      print('✅ [SplashScreen] MessageProvider initialized - listeners will be registered');
+      
+      if (!mounted) return;
+      // Initialize NotificationPreferencesProvider (this will load preferences from storage)
+      ref.read(notificationPreferencesProvider);
+      print('✅ [SplashScreen] NotificationPreferencesProvider initialized - preferences loaded');
+      
+      // Start PresenceHub connection (async operation)
+      if (!mounted) return;
       final presenceHub = ref.read(presenceHubProvider.notifier);
       await presenceHub.start();
-
-      // Initialize PresenceProvider (this will register listeners)
-      // PresenceProvider is already watching presenceHubProvider, so it will auto-initialize
-      // But we need to ensure it's created
-      ref.read(presenceProvider);
     } catch (e) {
-      // Ignore errors - presence is not critical for app startup
+      print('⚠️ [SplashScreen] Error initializing providers: $e');
+      // Ignore errors - providers are not critical for app startup
     }
   }
 
@@ -57,8 +74,8 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
 
       // If already authenticated, go to home
       if (authState.isAuthenticated && authState.user != null) {
-        // Initialize PresenceHub and PresenceProvider
-        _initializePresence();
+        // Initialize providers (PresenceHub, PresenceProvider, MessageProvider)
+        _initializeProviders();
 
         if (mounted) {
           context.go('/me');
@@ -73,8 +90,8 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
           await ref.read(authProvider.notifier).getCurrentUser();
           final newAuthState = ref.read(authProvider);
           if (newAuthState.isAuthenticated && mounted) {
-            // Initialize PresenceHub and PresenceProvider
-            _initializePresence();
+            // Initialize providers (PresenceHub, PresenceProvider, MessageProvider)
+            _initializeProviders();
 
             context.go('/me');
             return;

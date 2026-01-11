@@ -5,6 +5,7 @@ import 'package:sentry_flutter/sentry_flutter.dart';
 import 'core/theme/app_theme.dart';
 import 'core/router/app_router.dart';
 import 'services/database/database.dart';
+import 'services/notifications/notification_service.dart';
 import 'core/config/app_config.dart';
 
 void main() async {
@@ -37,6 +38,9 @@ void main() async {
   // Initialize database in background (non-blocking)
   // App will start immediately, database will initialize in parallel
   _initializeDatabase();
+
+  // Initialize notification service
+  await NotificationService.initialize();
 
   // Initialize Sentry (only in production or if DSN is provided)
   if (AppConfig.isProduction) {
@@ -74,10 +78,17 @@ class MyApp extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final router = AppRouter.createRouter(ref);
+    
+    // Set navigation callback for notification deep linking
+    NotificationService.setNavigationCallback((route) {
+      router.go(route);
+    });
+    
     return MaterialApp.router(
       title: 'CHORD iOS',
       theme: AppTheme.darkTheme,
-      routerConfig: AppRouter.createRouter(ref),
+      routerConfig: router,
       debugShowCheckedModeBanner: false,
     );
   }

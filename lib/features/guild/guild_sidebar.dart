@@ -7,7 +7,7 @@ import '../../providers/auth_provider.dart';
 import '../../models/guild/guild_dto.dart';
 import '../../models/auth/user_status.dart';
 import '../../features/modals/create_guild_modal.dart';
-import '../../features/presence/status_update_modal.dart';
+import '../../features/settings/user_settings_modal.dart';
 import '../../shared/widgets/user_status_indicator.dart';
 
 /// Guild sidebar widget
@@ -212,7 +212,7 @@ class _UserProfileButtonState extends ConsumerState<_UserProfileButton> {
         showDialog(
           context: context,
           barrierColor: Colors.black.withOpacity(0.7),
-          builder: (context) => StatusUpdateModal(
+          builder: (context) => UserSettingsModal(
             open: true,
             onOpenChange: (open) {
               if (!open) {

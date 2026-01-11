@@ -81,11 +81,12 @@ class FriendsRepository {
   }
 
   /// Send friend request
-  Future<FriendshipDto> sendFriendRequest(String userId) async {
+  /// Backend accepts username and converts it to userId internally
+  Future<FriendshipDto> sendFriendRequest(String username) async {
     try {
       final response = await _apiClient.post(
         '/Friends/request',
-        data: {'userId': userId},
+        data: {'username': username},
       );
       return FriendshipDto.fromJson(response.data as Map<String, dynamic>);
     } catch (e) {

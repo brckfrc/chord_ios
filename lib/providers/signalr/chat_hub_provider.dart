@@ -31,15 +31,16 @@ final chatHubServiceProvider = Provider<SignalRService>((ref) {
 /// ChatHub state provider
 class ChatHubNotifier extends StateNotifier<ChatHubState> {
   final SignalRService _service;
-  final Ref _ref;
 
-  ChatHubNotifier(this._service, this._ref) : super(ChatHubState()) {
+  ChatHubNotifier(this._service) : super(ChatHubState()) {
     _initialize();
   }
 
   Future<void> _initialize() async {
+    print('🔄 [ChatHubNotifier] Starting initialization...');
     try {
       final connection = await _service.getConnection();
+      print('✅ [ChatHubNotifier] Connection obtained: ${connection.state}');
 
       // Listen to connection state changes
       connection.onclose((error) {
@@ -48,6 +49,7 @@ class ChatHubNotifier extends StateNotifier<ChatHubState> {
           isConnected: false,
           error: error?.toString(),
         );
+        print('📊 [ChatHubNotifier] State updated: isConnected=false, state=disconnected');
       });
 
       connection.onreconnecting((error) {
@@ -56,6 +58,7 @@ class ChatHubNotifier extends StateNotifier<ChatHubState> {
           isConnected: false,
           error: error?.toString(),
         );
+        print('📊 [ChatHubNotifier] State updated: isConnected=false, state=reconnecting');
       });
 
       connection.onreconnected((connectionId) {
@@ -64,16 +67,29 @@ class ChatHubNotifier extends StateNotifier<ChatHubState> {
           isConnected: true,
           error: null,
         );
+        print('📊 [ChatHubNotifier] State updated: isConnected=true, state=connected (reconnected)');
       });
 
-      // Start connection
+      print('🔄 [ChatHubNotifier] Starting SignalR connection...');
       await _service.start();
+      print('✅ [ChatHubNotifier] SignalR start() completed');
 
-      // Update state after connection is established
-      // Wait a bit and check again since start() is async
-      await Future.delayed(const Duration(milliseconds: 500));
+      // Wait for connection to actually become connected
+      // connection.start() returns immediately, but connection might not be ready yet
+      final updatedConnection = await _service.getConnection();
+      int attempts = 0;
+      const maxAttempts = 10; // Max 1 second wait (10 * 100ms)
+      
+      while (attempts < maxAttempts && updatedConnection.state != HubConnectionState.connected) {
+        await Future.delayed(const Duration(milliseconds: 100));
+        final currentState = updatedConnection.state;
+        if (currentState == HubConnectionState.connected) {
+          break;
+        }
+        attempts++;
+      }
 
-      final currentState = connection.state;
+      final currentState = updatedConnection.state;
       final isConnected = currentState == HubConnectionState.connected;
 
       state = state.copyWith(
@@ -81,7 +97,10 @@ class ChatHubNotifier extends StateNotifier<ChatHubState> {
         isConnected: isConnected,
         error: null,
       );
+      print('📊 [ChatHubNotifier] State updated: isConnected=$isConnected, state=$currentState');
+      print('✅ [ChatHubNotifier] Initialization complete');
     } catch (e) {
+      print('❌ [ChatHubNotifier] Initialization failed: $e');
       state = state.copyWith(error: e.toString(), isConnected: false);
     }
   }
@@ -91,27 +110,40 @@ class ChatHubNotifier extends StateNotifier<ChatHubState> {
     try {
       final connection = await _service.getConnection();
       
-      // If already connected, just update state and return
       if (connection.state == HubConnectionState.connected) {
         state = state.copyWith(
           connectionState: HubConnectionState.connected,
           isConnected: true,
           error: null,
         );
+        print('📊 [ChatHubNotifier] State updated: isConnected=true, state=connected (already connected)');
         return;
       }
 
-      // Start connection - SignalRService.start() already handles state checking
       await _service.start();
       
-      // Update state based on current connection state
-      // State will be updated via event listeners if connection succeeds
-      final currentState = connection.state;
+      // Wait for connection to actually become connected
+      // connection.start() returns immediately, but connection might not be ready yet
+      final updatedConnection = await _service.getConnection();
+      int attempts = 0;
+      const maxAttempts = 10; // Max 1 second wait (10 * 100ms)
+      
+      while (attempts < maxAttempts && updatedConnection.state != HubConnectionState.connected) {
+        await Future.delayed(const Duration(milliseconds: 100));
+        final currentState = updatedConnection.state;
+        if (currentState == HubConnectionState.connected) {
+          break;
+        }
+        attempts++;
+      }
+      
+      final currentState = updatedConnection.state;
       state = state.copyWith(
         connectionState: currentState,
         isConnected: currentState == HubConnectionState.connected,
         error: null,
       );
+      print('📊 [ChatHubNotifier] State updated: isConnected=${currentState == HubConnectionState.connected}, state=$currentState');
     } catch (e) {
       state = state.copyWith(
         error: e.toString(),
@@ -164,8 +196,13 @@ class ChatHubNotifier extends StateNotifier<ChatHubState> {
   /// Listen to hub event
   void on(String methodName, Function(List<Object?>?) callback) {
     final connection = _service.connection;
+    print('🔍 [ChatHub] on() called for event: $methodName, connection: ${connection != null ? 'exists (state: ${connection.state})' : 'null'}');
+    
     if (connection != null) {
       connection.on(methodName, callback);
+      print('✅ [ChatHub] Registered listener for event: $methodName (connection state: ${connection.state})');
+    } else {
+      print('❌ [ChatHub] Cannot register listener for $methodName: connection is null');
     }
   }
 
@@ -215,6 +252,18 @@ class ChatHubNotifier extends StateNotifier<ChatHubState> {
       await invoke('MarkDMAsRead', args: [dmId]);
     }
   }
+
+  // ========== Channel Methods ==========
+
+  /// Join a text channel
+  Future<void> joinChannel(String channelId) async {
+    await invoke('JoinChannel', args: [channelId]);
+  }
+
+  /// Leave a text channel
+  Future<void> leaveChannel(String channelId) async {
+    await invoke('LeaveChannel', args: [channelId]);
+  }
 }
 
 /// ChatHub provider
@@ -222,5 +271,5 @@ final chatHubProvider = StateNotifierProvider<ChatHubNotifier, ChatHubState>((
   ref,
 ) {
   final service = ref.watch(chatHubServiceProvider);
-  return ChatHubNotifier(service, ref);
+  return ChatHubNotifier(service);
 });

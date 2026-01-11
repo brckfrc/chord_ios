@@ -41,6 +41,7 @@ class FriendshipDto {
   final DateTime? acceptedAt;
   final UserDto? requester;
   final UserDto? addressee;
+  final UserDto? otherUser; // Backend'den gelen OtherUser
 
   FriendshipDto({
     required this.id,
@@ -51,6 +52,7 @@ class FriendshipDto {
     this.acceptedAt,
     this.requester,
     this.addressee,
+    this.otherUser,
   });
 
   factory FriendshipDto.fromJson(Map<String, dynamic> json) {
@@ -73,6 +75,9 @@ class FriendshipDto {
       addressee: json['addressee'] != null
           ? UserDto.fromJson(json['addressee'] as Map<String, dynamic>)
           : null,
+      otherUser: json['otherUser'] != null
+          ? UserDto.fromJson(json['otherUser'] as Map<String, dynamic>)
+          : null,
     );
   }
 
@@ -86,11 +91,18 @@ class FriendshipDto {
       if (acceptedAt != null) 'acceptedAt': acceptedAt!.toIso8601String(),
       if (requester != null) 'requester': requester!.toJson(),
       if (addressee != null) 'addressee': addressee!.toJson(),
+      if (otherUser != null) 'otherUser': otherUser!.toJson(),
     };
   }
 
   /// Get the other user in the friendship (for current user)
   UserDto? getOtherUser(String currentUserId) {
+    // Önce otherUser'ı kontrol et (backend'den geliyor)
+    if (otherUser != null) {
+      return otherUser;
+    }
+    
+    // Fallback: requester/addressee kullan
     if (requesterId == currentUserId) {
       return addressee;
     } else if (addresseeId == currentUserId) {
@@ -109,6 +121,7 @@ class FriendshipDto {
     DateTime? acceptedAt,
     UserDto? requester,
     UserDto? addressee,
+    UserDto? otherUser,
   }) {
     return FriendshipDto(
       id: id ?? this.id,
@@ -119,6 +132,7 @@ class FriendshipDto {
       acceptedAt: acceptedAt ?? this.acceptedAt,
       requester: requester ?? this.requester,
       addressee: addressee ?? this.addressee,
+      otherUser: otherUser ?? this.otherUser,
     );
   }
 }

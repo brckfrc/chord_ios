@@ -219,10 +219,11 @@ class FriendsNotifier extends StateNotifier<FriendsState> {
   }
 
   /// Send friend request
-  Future<bool> sendFriendRequest(String userId) async {
+  /// Accepts username - backend will convert it to userId
+  Future<bool> sendFriendRequest(String username) async {
     state = state.copyWith(isLoading: true, error: null);
     try {
-      final friendship = await _repository.sendFriendRequest(userId);
+      final friendship = await _repository.sendFriendRequest(username);
       
       // Add to pending requests if not already there
       final updatedPending = List<FriendshipDto>.from(state.pendingRequests);

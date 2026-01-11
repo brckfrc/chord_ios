@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/friends/friendship_dto.dart';
 import '../repositories/friends_repository.dart';
 import 'signalr/chat_hub_provider.dart';
+import 'signalr/presence_hub_provider.dart';
 
 /// Friends state
 class FriendsState {
@@ -50,54 +51,83 @@ class FriendsNotifier extends StateNotifier<FriendsState> {
 
   /// Setup SignalR event listeners for friends
   void _setupSignalRListeners() {
-    // Note: Backend may not have these events yet, but we'll set them up for future use
     try {
+      // Friend request events come from PresenceHub (not ChatHub)
+      final presenceHub = _ref.read(presenceHubProvider.notifier);
+      final presenceHubState = _ref.read(presenceHubProvider);
+      
+      if (presenceHubState.isConnected) {
+        _registerPresenceHubListeners(presenceHub);
+      }
+      
+      // Watch for PresenceHub connection state changes
+      _ref.listen<PresenceHubState>(presenceHubProvider, (previous, next) {
+        if (next.isConnected && (previous == null || !previous.isConnected)) {
+          _registerPresenceHubListeners(presenceHub);
+        }
+      });
+
+      // Other friend events (FriendRemoved, UserBlocked, etc.) come from ChatHub
       final chatHub = _ref.read(chatHubProvider.notifier);
       final chatHubState = _ref.read(chatHubProvider);
       
       if (chatHubState.isConnected) {
-        _registerSignalRListeners(chatHub);
+        _registerChatHubListeners(chatHub);
       }
       
-      // Watch for connection state changes and setup listeners when connected
+      // Watch for ChatHub connection state changes
       _ref.listen<ChatHubState>(chatHubProvider, (previous, next) {
         if (next.isConnected && (previous == null || !previous.isConnected)) {
-          _registerSignalRListeners(chatHub);
+          _registerChatHubListeners(chatHub);
         }
       });
     } catch (e) {
       // SignalR not available or not connected yet - will retry when connected
+      print('⚠️ [FriendsProvider] Error setting up SignalR listeners: $e');
     }
   }
 
-  /// Register SignalR event listeners
-  void _registerSignalRListeners(chatHub) {
-    // FriendRequestReceived - New friend request received
-    chatHub.on('FriendRequestReceived', (args) {
+  /// Register PresenceHub event listeners (for friend request events)
+  void _registerPresenceHubListeners(presenceHub) {
+    print('🔄 [FriendsProvider] Registering PresenceHub listeners for friend requests...');
+    
+    // FriendRequestReceived - New friend request received (from PresenceHub)
+    presenceHub.on('FriendRequestReceived', (args) {
       if (args != null && args.isNotEmpty) {
         try {
+          print('🔔 [FriendsProvider] FriendRequestReceived event received from PresenceHub');
           final data = args[0] as Map<String, dynamic>;
           final friendship = FriendshipDto.fromJson(data);
           onFriendRequestReceived(friendship);
+          print('✅ [FriendsProvider] Friend request added to pending list');
         } catch (e) {
-          // Handle error
+          print('❌ [FriendsProvider] Error handling FriendRequestReceived: $e');
         }
       }
     });
 
-    // FriendRequestAccepted - Friend request was accepted
-    chatHub.on('FriendRequestAccepted', (args) {
+    // FriendRequestAccepted - Friend request was accepted (from PresenceHub)
+    presenceHub.on('FriendRequestAccepted', (args) {
       if (args != null && args.isNotEmpty) {
         try {
+          print('🔔 [FriendsProvider] FriendRequestAccepted event received from PresenceHub');
           final data = args[0] as Map<String, dynamic>;
           final friendship = FriendshipDto.fromJson(data);
           onFriendRequestAccepted(friendship);
+          print('✅ [FriendsProvider] Friend request accepted, moved to friends list');
         } catch (e) {
-          // Handle error
+          print('❌ [FriendsProvider] Error handling FriendRequestAccepted: $e');
         }
       }
     });
 
+    print('✅ [FriendsProvider] PresenceHub listeners registered');
+  }
+
+  /// Register ChatHub event listeners (for other friend events)
+  void _registerChatHubListeners(chatHub) {
+    print('🔄 [FriendsProvider] Registering ChatHub listeners for friend events...');
+    
     // FriendRequestDeclined - Friend request was declined
     chatHub.on('FriendRequestDeclined', (args) {
       if (args != null && args.isNotEmpty) {
@@ -152,6 +182,8 @@ class FriendsNotifier extends StateNotifier<FriendsState> {
         }
       }
     });
+
+    print('✅ [FriendsProvider] ChatHub listeners registered');
   }
 
   /// Fetch all friends

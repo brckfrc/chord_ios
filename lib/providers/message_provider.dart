@@ -576,7 +576,7 @@ class MessageNotifier extends StateNotifier<MessageState> {
           // Normal add (not replacing pending)
           _addMessageToChannel(message.channelId, message);
           
-          // Show notification (only if not current user and not viewing this DM)
+          // Show notification and update unread count (only if not current user and not viewing this DM)
           if (currentUserId != null && message.userId != currentUserId) {
             // Check if user is currently viewing this DM
             final dmState = _ref.read(dmProvider);
@@ -584,8 +584,12 @@ class MessageNotifier extends StateNotifier<MessageState> {
             
             print('🔔 [MessageProvider] DMReceiveMessage event: channelId=${message.channelId}, isViewingDM=$isViewingDM');
             
-            // Only show notification if user is NOT viewing this DM
+            // Only update unread count and show notification if user is NOT viewing this DM
             if (!isViewingDM) {
+              // Increment unread count for this DM
+              _ref.read(dmProvider.notifier).incrementDMUnreadCount(message.channelId);
+              print('📈 [MessageProvider] Incremented unread count for DM: ${message.channelId}');
+              
               // Check notification preferences
               final notificationPrefs = _ref.read(notificationPreferencesProvider);
               if (!notificationPrefs.dmEnabled) {
@@ -610,7 +614,7 @@ class MessageNotifier extends StateNotifier<MessageState> {
                 print('❌ [MessageProvider] Failed to show DM notification: $e');
               }
             } else {
-              print('⏭️ [MessageProvider] Skipping DM notification - user is viewing this DM');
+              print('⏭️ [MessageProvider] Skipping DM notification and unread count update - user is viewing this DM');
             }
           }
         } catch (e) {
@@ -686,6 +690,28 @@ class MessageNotifier extends StateNotifier<MessageState> {
           }
         } catch (e) {
           // Ignore parsing errors
+        }
+      }
+    });
+
+    // Listen to DMMarkAsRead event
+    chatHub.on('DMMarkAsRead', (args) {
+      if (args != null && args.isNotEmpty) {
+        try {
+          // Backend format: { dmChannelId, lastReadMessageId, unreadCount }
+          if (args[0] is Map) {
+            final data = args[0] as Map<String, dynamic>;
+            final dmChannelId = data['dmChannelId']?.toString() ?? '';
+            final unreadCount = data['unreadCount'] as int? ?? 0;
+            
+            print('🔔 [MessageProvider] DMMarkAsRead event received: dmChannelId=$dmChannelId, unreadCount=$unreadCount');
+            
+            // Update DM unread count in DM provider
+            _ref.read(dmProvider.notifier).updateDMUnreadCount(dmChannelId, unreadCount);
+            print('✅ [MessageProvider] DM unread count updated: $dmChannelId -> $unreadCount');
+          }
+        } catch (e) {
+          print('❌ [MessageProvider] Error handling DMMarkAsRead event: $e');
         }
       }
     });

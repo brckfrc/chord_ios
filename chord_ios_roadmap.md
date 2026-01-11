@@ -11,14 +11,31 @@
 
 ## 📍 Şu An Neredeyiz
 
-**Son Tamamlanan**: FAZ 7.5 - WebRTC Connection Stability & Friends Feature
+**Son Tamamlanan**: FAZ 7.5 - WebRTC Connection Stability & Friends Feature + Bug Fixes (DM Unread Count & Pending Requests)
 
-**Aktif Çalışılan**: Friends Feature iyileştirmeleri
+**Aktif Çalışılan**: FAZ 10 - UX Polish & Accessibility
 
-**Bilinen Sorunlar & Yapılacaklar**:
+**Son Düzeltilen Sorunlar** (2025-01-XX):
 
-- ⚠️ **DM Unread Count Güncelleme Sorunu**: DM'lerde okunmamış mesaj sayısı güncellenmiyor, hep okunmamış olarak görünüyor. DM açıldığında `markDMAsRead` çağrılıyor ancak state güncellenmiyor veya SignalR event'i gelmiyor olabilir.
-- ⚠️ **Pending Friend Requests UI Eksik**: Arkadaşlık istekleri UI'da görünmüyor. FriendsSidebar veya FriendsHome'da pending requests listesi eklenebilir (badge ile sayı gösterimi mevcut ama detaylı liste yok).
+- ✅ **DM Unread Count Güncelleme Sorunu ÇÖZÜLDÜ**: 
+  - `DMMarkAsRead` SignalR event listener eklendi (MessageProvider, ChatHub'dan)
+  - `updateDMUnreadCount()` ve `incrementDMUnreadCount()` metodları DMProvider'a eklendi
+  - Yeni DM mesajı geldiğinde unread count otomatik artırılıyor (sadece DM görüntülenmiyorsa)
+  - DM açıldığında unread count backend'den gelen event ile güncelleniyor
+
+- ✅ **Pending Friend Requests UI Sorunu ÇÖZÜLDÜ**: 
+  - Friend request event listener'ları PresenceHub'a taşındı (ChatHub yerine)
+  - `FriendRequestReceived` ve `FriendRequestAccepted` event'leri artık PresenceHub'dan dinleniyor
+  - Real-time friend request güncellemeleri çalışıyor
+  - Pending requests listesi FriendsHome'da Pending tab'ında görünüyor
+
+**Sıradaki Çözülecek Sorunlar**:
+
+- ⚠️ **Chat Açılınca Emülatör Kapanma Sorunu**: 
+  - Chat açılınca emülatör kapanıyor (crash)
+  - Log'larda görülen hata: `AutoJoin Error leaving channels: Bad state: Cannot use "ref" after the widget was disposed.`
+  - Widget dispose edildikten sonra `ref` kullanılmaya çalışılıyor
+  - AutoJoin işlemi sırasında lifecycle yönetimi düzeltilmeli
 
 ---
 
@@ -393,6 +410,8 @@
 - Error handling iyileştirildi (backend'den gelen error messages gösteriliyor, DioException handling eklendi)
 - Türkçe mesajlar İngilizce'ye çevrildi (tüm user-facing mesajlar İngilizce)
 - Overflow sorunu düzeltildi (aktif arkadaş listesi container height 80 → 85)
+- **DM Unread Count sorunu çözüldü**: `DMMarkAsRead` SignalR event listener eklendi, yeni mesaj geldiğinde unread count otomatik artırılıyor
+- **Pending Friend Requests sorunu çözüldü**: Friend request event listener'ları PresenceHub'a taşındı, real-time güncellemeler çalışıyor
 
 ### Görevler
 
@@ -412,6 +431,10 @@
 - [x] Error handling iyileştirmesi (backend error messages, DioException handling, debug logging) ✅
 - [x] Türkçe mesajlar İngilizce'ye çevrildi (tüm user-facing mesajlar İngilizce) ✅
 - [x] Overflow sorunu düzeltildi (aktif arkadaş listesi container height artırıldı) ✅
+- [x] DM Unread Count fix: DMMarkAsRead SignalR event listener eklendi (MessageProvider) ✅
+- [x] DM Unread Count fix: updateDMUnreadCount ve incrementDMUnreadCount metodları eklendi (DMProvider) ✅
+- [x] DM Unread Count fix: DMReceiveMessage handler'ında unread count artırılıyor ✅
+- [x] Pending Friend Requests fix: Friend request event listener'ları PresenceHub'a taşındı ✅
 
 ### Deliverables
 
@@ -428,11 +451,24 @@
 ✅ Backend error messages kullanıcıya gösteriliyor (DioException handling)
 ✅ Tüm mesajlar İngilizce (Türkçe mesajlar kaldırıldı)
 ✅ Overflow sorunu çözüldü (aktif arkadaş listesi düzgün render ediliyor)
+✅ DM unread count real-time güncelleniyor (DMMarkAsRead SignalR event ile)
+✅ Yeni DM mesajı geldiğinde unread count otomatik artırılıyor (DM görüntülenmiyorsa)
+✅ Friend request event'leri real-time çalışıyor (PresenceHub entegrasyonu)
+✅ Pending friend requests UI'da görünüyor ve real-time güncelleniyor
 
-**Bilinen Sorunlar & Gelecek İyileştirmeler**:
+**Son Düzeltilen Sorunlar** (2025-01-XX):
 
-- ⚠️ **DM Unread Count Güncelleme Sorunu**: DM'lerde okunmamış mesaj sayısı güncellenmiyor, hep okunmamış olarak görünüyor. DM açıldığında `markDMAsRead` çağrılıyor ancak state güncellenmiyor veya SignalR event'i gelmiyor olabilir.
-- ⚠️ **Pending Friend Requests UI Eksik**: Arkadaşlık istekleri UI'da görünmüyor. FriendsSidebar veya FriendsHome'da pending requests listesi eklenebilir (badge ile sayı gösterimi mevcut ama detaylı liste yok).
+- ✅ **DM Unread Count Güncelleme Sorunu ÇÖZÜLDÜ**: 
+  - `DMMarkAsRead` SignalR event listener eklendi (MessageProvider, ChatHub'dan)
+  - `updateDMUnreadCount()` ve `incrementDMUnreadCount()` metodları DMProvider'a eklendi
+  - Yeni DM mesajı geldiğinde unread count otomatik artırılıyor (sadece DM görüntülenmiyorsa ve mesaj başkasından geliyorsa)
+  - DM açıldığında unread count backend'den gelen event ile güncelleniyor
+
+- ✅ **Pending Friend Requests UI Sorunu ÇÖZÜLDÜ**: 
+  - Friend request event listener'ları PresenceHub'a taşındı (ChatHub yerine)
+  - `FriendRequestReceived` ve `FriendRequestAccepted` event'leri artık PresenceHub'dan dinleniyor
+  - Real-time friend request güncellemeleri çalışıyor
+  - Pending requests listesi FriendsHome'da Pending tab'ında görünüyor
 
 ---
 
@@ -615,7 +651,7 @@
 5. **FAZ 5.5**: Mentions & Notifications (Backend hazır ✅) - ✅ TAMAMLANDI
 6. **FAZ 6**: Voice channels + WebRTC temel - ✅ TAMAMLANDI
 7. **FAZ 7**: WebRTC Multi-User & Mute/Unmute - ✅ TAMAMLANDI
-8. **FAZ 7.5**: WebRTC Connection Stability & Friends Feature - ✅ TAMAMLANDI
+8. **FAZ 7.5**: WebRTC Connection Stability & Friends Feature + Bug Fixes - ✅ TAMAMLANDI
 9. **FAZ 8**: File upload & Video support - ✅ TAMAMLANDI
 10. **FAZ 9**: Local Notifications (Backend FAZ 5.5'te mentions tamamlandı ✅) - ✅ TAMAMLANDI
 11. **FAZ 9.5**: Push Notifications (FCM/APNs) - ❌ YAPILMAYACAK ŞİMDİLİK

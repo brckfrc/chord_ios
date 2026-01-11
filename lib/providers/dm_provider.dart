@@ -116,6 +116,45 @@ class DMNotifier extends StateNotifier<DMState> {
       state = state.copyWith(error: e.toString());
     }
   }
+
+  /// Update DM unread count (called from SignalR event)
+  void updateDMUnreadCount(String dmId, int unreadCount) {
+    final updatedDms = List<DMDto>.from(state.dms);
+    final dmIndex = updatedDms.indexWhere((dm) => dm.id == dmId);
+    if (dmIndex >= 0) {
+      final updatedDM = DMDto(
+        id: updatedDms[dmIndex].id,
+        userId: updatedDms[dmIndex].userId,
+        otherUserId: updatedDms[dmIndex].otherUserId,
+        otherUser: updatedDms[dmIndex].otherUser,
+        lastMessage: updatedDms[dmIndex].lastMessage,
+        unreadCount: unreadCount,
+        createdAt: updatedDms[dmIndex].createdAt,
+      );
+      updatedDms[dmIndex] = updatedDM;
+      state = state.copyWith(dms: updatedDms);
+    }
+  }
+
+  /// Increment DM unread count (called when new message arrives)
+  void incrementDMUnreadCount(String dmId) {
+    final updatedDms = List<DMDto>.from(state.dms);
+    final dmIndex = updatedDms.indexWhere((dm) => dm.id == dmId);
+    if (dmIndex >= 0) {
+      final currentUnreadCount = updatedDms[dmIndex].unreadCount;
+      final updatedDM = DMDto(
+        id: updatedDms[dmIndex].id,
+        userId: updatedDms[dmIndex].userId,
+        otherUserId: updatedDms[dmIndex].otherUserId,
+        otherUser: updatedDms[dmIndex].otherUser,
+        lastMessage: updatedDms[dmIndex].lastMessage,
+        unreadCount: currentUnreadCount + 1,
+        createdAt: updatedDms[dmIndex].createdAt,
+      );
+      updatedDms[dmIndex] = updatedDM;
+      state = state.copyWith(dms: updatedDms);
+    }
+  }
 }
 
 /// DM repository provider

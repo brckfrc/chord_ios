@@ -1,6 +1,6 @@
 # 📱 Chord iOS - Flutter Mobile Client
 
-Chord iOS is a Flutter-based iOS mobile client for the [Chord Backend API](https://github.com/brckfrc/chord). A Discord-like real-time chat application with iOS-specific features, permission management, lifecycle handling, and notification support.
+Chord iOS is a Flutter-based mobile client for the [Chord Backend API](https://github.com/brckfrc/chord). A Discord-like real-time chat application with iOS and Android support, platform-specific features, permission management, lifecycle handling, and notification support.
 
 ## 🚀 Features
 
@@ -43,11 +43,13 @@ Chord iOS is a Flutter-based iOS mobile client for the [Chord Backend API](https
 - **Flutter SDK 3.38+** - [Install Flutter](https://docs.flutter.dev/get-started/install)
 - **Xcode 15+** (macOS only) - iOS development
 - **CocoaPods** - iOS dependency manager
-- **Android Studio / VS Code** - IDE (optional)
+- **Android Studio** - Android development (Android SDK, Gradle)
+- **VS Code** - IDE (optional)
 
 ### Runtime
 
 - **iOS 13.0+** - Minimum iOS version
+- **Android 5.0+ (API 21+)** - Minimum Android version
 - **Backend API** - Chord Backend API must be running
 
 ## 🚀 Getting Started
@@ -88,74 +90,55 @@ The app uses environment-based configuration. By default, it runs in **developme
 - Configuration is in `lib/core/config/app_config.dart` (no manual editing needed)
 - Environment is set via `--dart-define=ENV=production` flag
 
-### 4. Run on iOS Simulator or Device
+### 4. Run on iOS/Android Simulator or Device
 
 ```bash
 # Development mode (default - connects to localhost)
-flutter run -d ios
+flutter run -d ios          # iOS
+flutter run -d android      # Android
 
 # Production mode (connects to chord.borak.dev)
 flutter run --dart-define=ENV=production -d ios
+flutter run --dart-define=ENV=production -d android
 
 # List available devices
 flutter devices
 flutter run -d <device-id>
 ```
 
-**Note:** On a real iOS device, `localhost` won't work in development mode. Use production mode or configure your computer's LAN IP address.
+**Note:** On a real device, `localhost` won't work in development mode. Use production mode or configure your computer's LAN IP address.
 
 ## 📁 Project Structure
 
 ```
-lib/
-├── core/                    # Core configuration
-│   ├── config/             # App config (API URLs, environment)
-│   ├── router/             # GoRouter route definitions
-│   └── theme/              # Dark theme, colors
+chord_ios/
+├── lib/                    # Flutter application code
+│   ├── core/              # Core configuration
+│   │   ├── config/        # App config (API URLs, environment)
+│   │   ├── router/        # GoRouter route definitions
+│   │   └── theme/         # Dark theme, colors
+│   │
+│   ├── features/          # Screens and UI components
+│   │   ├── auth/         # Login, register screens
+│   │   ├── guild/        # Guild management (sidebar, channel view)
+│   │   ├── friends/      # DM (Direct Messages)
+│   │   ├── messages/     # Message components (list, item, composer)
+│   │   ├── mentions/     # Mention system
+│   │   ├── modals/       # Modal dialogs (create guild, channel, invite)
+│   │   ├── presence/     # User status (status update modal)
+│   │   └── splash/       # Splash screen
+│   │
+│   ├── models/           # Data models (DTOs)
+│   ├── repositories/     # API calls
+│   ├── providers/        # State management (Riverpod)
+│   ├── services/         # Services (API, database, SignalR, storage)
+│   ├── shared/           # Shared widgets
+│   └── main.dart         # Application entry point
 │
-├── features/               # Screens and UI components
-│   ├── auth/              # Login, register screens
-│   ├── guild/             # Guild management (sidebar, channel view)
-│   ├── friends/           # DM (Direct Messages)
-│   ├── messages/          # Message components (list, item, composer)
-│   ├── mentions/         # Mention system
-│   ├── modals/            # Modal dialogs (create guild, channel, invite)
-│   ├── presence/          # User status (status update modal)
-│   └── splash/            # Splash screen
-│
-├── models/                 # Data models (DTOs)
-│   ├── auth/              # User, Login, Register, Token models
-│   ├── guild/             # Guild, Channel, GuildMember models
-│   ├── message/           # Message, CreateMessage models
-│   ├── dm/                # DM model
-│   └── mention/           # MessageMention model
-│
-├── repositories/          # API calls
-│   ├── auth_repository.dart
-│   ├── guild_repository.dart
-│   ├── channel_repository.dart
-│   ├── message_repository.dart
-│   ├── dm_repository.dart
-│   └── mention_repository.dart
-│
-├── providers/             # State management (Riverpod)
-│   ├── auth_provider.dart
-│   ├── guild_provider.dart
-│   ├── message_provider.dart
-│   ├── presence_provider.dart
-│   └── signalr/           # SignalR hub providers
-│
-├── services/              # Services
-│   ├── api/               # Dio HTTP client
-│   ├── database/          # Hive database, message cache
-│   ├── network/           # Connectivity service
-│   ├── signalr/           # SignalR connection manager
-│   └── storage/           # Secure storage (Keychain)
-│
-├── shared/                # Shared widgets
-│   └── widgets/           # AppButton, AppInput, Loading, Toast, etc.
-│
-└── main.dart              # Application entry point
+├── ios/                   # iOS platform-specific code
+├── android/               # Android platform-specific code
+├── pubspec.yaml           # Flutter dependencies
+└── README.md              # This file
 ```
 
 ## 🔧 Development
@@ -173,6 +156,8 @@ flutter run
 
 ### Build
 
+#### iOS Build
+
 ```bash
 # iOS Debug build (development mode)
 flutter build ios --debug
@@ -182,6 +167,22 @@ flutter build ios --release
 
 # iOS Release build (production mode - for TestFlight/App Store)
 flutter build ios --dart-define=ENV=production --release
+```
+
+#### Android Build
+
+```bash
+# Android Debug build (development mode)
+flutter build apk --debug
+
+# Android Release build (development mode)
+flutter build apk --release
+
+# Android Release build (production mode)
+flutter build apk --dart-define=ENV=production --release
+
+# Android App Bundle (for Google Play Store)
+flutter build appbundle --dart-define=ENV=production --release
 ```
 
 **Production Build Notes:**
@@ -200,9 +201,11 @@ flutter pub run build_runner build
 flutter pub run build_runner watch
 ```
 
-## 🔐 iOS Configuration
+## 🔐 Platform Configuration
 
-### Info.plist Permissions
+### iOS Configuration
+
+#### Info.plist Permissions
 
 Required permissions in `ios/Runner/Info.plist`:
 
@@ -220,7 +223,7 @@ Required permissions in `ios/Runner/Info.plist`:
 <string>Photo library access is required for sharing images and videos.</string>
 ```
 
-### Background Modes (Future: Voice Channels)
+#### Background Modes
 
 In `ios/Runner/Info.plist`:
 
@@ -229,6 +232,36 @@ In `ios/Runner/Info.plist`:
 <array>
     <string>audio</string> <!-- For voice channels -->
 </array>
+```
+
+### Android Configuration
+
+#### AndroidManifest.xml Permissions
+
+Required permissions in `android/app/src/main/AndroidManifest.xml`:
+
+```xml
+<!-- Microphone (for voice channels) -->
+<uses-permission android:name="android.permission.RECORD_AUDIO" />
+
+<!-- Camera (for video sharing) -->
+<uses-permission android:name="android.permission.CAMERA" />
+
+<!-- Photo Library (for image/video sharing) -->
+<uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />
+<uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" />
+
+<!-- Internet (for API calls) -->
+<uses-permission android:name="android.permission.INTERNET" />
+```
+
+#### Background Service (for Voice Channels)
+
+For voice channels, foreground service permission is required in `AndroidManifest.xml`:
+
+```xml
+<uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+<uses-permission android:name="android.permission.FOREGROUND_SERVICE_MICROPHONE" />
 ```
 
 ## 📡 Backend Connection
@@ -278,6 +311,22 @@ cd ..
 # Flutter clean
 flutter clean
 flutter pub get
+```
+
+### Android Build Issues
+
+```bash
+# Clean Gradle cache
+cd android
+./gradlew clean
+cd ..
+
+# Flutter clean
+flutter clean
+flutter pub get
+
+# Rebuild
+flutter build apk --release
 ```
 
 ### SignalR Connection Issues

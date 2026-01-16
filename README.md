@@ -2,9 +2,9 @@
 
 > **📄 Project Final Report**: The project final report is located in the repository's root directory: [21290270.pdf](./21290270.pdf)
 > 
-> **🎥 Project Demo Video**: [YouTube - Chord iOS Project Demo](https://youtu.be/59dusNjMBpM)
+> **🎥 Project Introduction Video**: [YouTube - Chord iOS Project Introduction](https://youtu.be/59dusNjMBpM)
 
-Chord iOS is a Flutter-based mobile client for the [Chord Backend API](https://github.com/brckfrc/chord). A Discord-like real-time chat application with iOS and Android support, platform-specific features, permission management, lifecycle handling, and notification support.
+Chord iOS is a Flutter-based mobile client for the [Chord](https://github.com/brckfrc/chord) project. This app uses the API from the Chord backend project. A Discord-like real-time chat application with iOS and Android support, platform-specific features, permission management, lifecycle handling, and notification support.
 
 ## 🚀 Features
 
@@ -54,7 +54,7 @@ Chord iOS is a Flutter-based mobile client for the [Chord Backend API](https://g
 
 - **iOS 13.0+** - Minimum iOS version
 - **Android 5.0+ (API 21+)** - Minimum Android version
-- **Backend API** - Chord Backend API must be running
+- **Backend API** - Chord backend API must be running
 
 ## 🚀 Getting Started
 
@@ -270,7 +270,7 @@ For voice channels, foreground service permission is required in `AndroidManifes
 
 ## 📡 Backend Connection
 
-This mobile app works with the [Chord Backend API](https://github.com/brckfrc/chord).
+This mobile app works with the [Chord](https://github.com/brckfrc/chord) backend project and uses its API.
 
 ### Backend Requirements
 

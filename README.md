@@ -1,5 +1,9 @@
 # 📱 Chord iOS - Flutter Mobile Client
 
+> **📄 Project Final Report**: The project final report is located in the repository's root directory: [21290270.pdf](./21290270.pdf)
+> 
+> **🎥 Project Demo Video**: [YouTube - Chord iOS Project Demo](https://youtu.be/59dusNjMBpM)
+
 Chord iOS is a Flutter-based mobile client for the [Chord Backend API](https://github.com/brckfrc/chord). A Discord-like real-time chat application with iOS and Android support, platform-specific features, permission management, lifecycle handling, and notification support.
 
 ## 🚀 Features

@@ -319,6 +319,9 @@ flutter pub get
 
 ### Android Build Issues
 
+> **Note**: Android CI builds (GitHub Actions) are currently disabled. This was done to save CI resources since iOS is the primary target, and because some plugins like `flutter_webrtc` require `compileSdk` updates that complicate the build. 
+> **To re-enable**: Uncomment the `push` and `pull_request` triggers and remove the `if: false` condition in `.github/workflows/android-build.yml`. If you encounter a `compileSdk` error after re-enabling, you must globally force `compileSdkVersion 34` in the root `android/build.gradle` using a `subprojects { ... }` block.
+
 ```bash
 # Clean Gradle cache
 cd android

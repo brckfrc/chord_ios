@@ -1,10 +1,10 @@
 name: Android Build
 
 on:
-  push:
-    branches: [main, master, develop]
-  pull_request:
-    branches: [main, master]
+  # push:
+  #   branches: [main, master, develop]
+  # pull_request:
+  #   branches: [main, master]
   workflow_dispatch:
     inputs:
       environment:
@@ -19,6 +19,8 @@ on:
 jobs:
   build-android:
     name: Build Android APK
+    # Android build is temporarily disabled as per user request
+    if: false
     runs-on: ubuntu-latest
 
     steps:

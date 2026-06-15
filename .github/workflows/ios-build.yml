@@ -23,10 +23,10 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v6.0.1
+        uses: actions/checkout@v6.0.3
 
       - name: Setup Flutter
-        uses: subosito/flutter-action@v2.21.0
+        uses: subosito/flutter-action@v2.23.0
         with:
           flutter-version: "3.24.0"
           channel: "stable"

@@ -56,7 +56,7 @@ dependencies:
   path_provider: ^2.1.5
 
   # Error Tracking
-  sentry_flutter: ^8.0.0
+  sentry_flutter: ^9.22.0
 
   # Network Connectivity
   connectivity_plus: ^6.0.5
